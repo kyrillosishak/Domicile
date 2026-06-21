@@ -22,7 +22,7 @@ const hasWebGPU = 'gpu' in navigator;
 
 const db = new VectorDB({
   storage: { dbName: 'my-app' },
-  index: { indexType: 'kdtree', dimensions: 384, metric: 'cosine' },
+  index: { indexType: 'hnsw', dimensions: 384, metric: 'cosine' },
   embedding: {
     model: 'Xenova/all-MiniLM-L6-v2',
     device: hasWebGPU ? 'webgpu' : 'wasm',  // Use GPU if available
@@ -41,7 +41,7 @@ Cache models and embeddings to avoid recomputation:
 ```typescript
 const db = new VectorDB({
   storage: { dbName: 'my-app' },
-  index: { indexType: 'kdtree', dimensions: 384, metric: 'cosine' },
+  index: { indexType: 'hnsw', dimensions: 384, metric: 'cosine' },
   embedding: {
     model: 'Xenova/all-MiniLM-L6-v2',
     device: 'wasm',
@@ -120,7 +120,7 @@ storage: {
 
 ```typescript
 index: {
-  indexType: 'kdtree',
+  indexType: 'hnsw',
   dimensions: 384,
   metric: 'cosine',  // Fastest for normalized embeddings
 }

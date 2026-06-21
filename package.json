@@ -1,11 +1,14 @@
 {
-  "name": "haven",
-  "version": "0.1.0",
-  "description": "Your Private AI Stack - Vector database + RAG + LLM, all in the browser",
+  "name": "domicile",
+  "version": "0.2.0",
+  "description": "Domicile — your private AI stack. Vector database + RAG + LLM, all in the browser. Architectural data custody.",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "domicile": "./dist/cli/index.js"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -18,7 +21,8 @@
   ],
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "clean": "rm -rf dist",
+    "build": "npm run clean && tsc && vite build",
     "test": "vitest run --exclude '**/*.integration.test.ts'",
     "test:unit": "vitest run --exclude '**/*.integration.test.ts'",
     "test:integration": "vitest run src/**/*.integration.test.ts",
@@ -26,6 +30,9 @@
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage --exclude '**/*.integration.test.ts'",
     "type-check": "tsc --noEmit",
+    "type-check:desktop": "tsc --noEmit -p tsconfig.desktop.json",
+    "smoke:desktop": "node desktop/desktop.smoke.mjs",
+    "smoke:showcase": "node showcase/showcase.smoke.mjs",
     "lint": "eslint src --ext .ts,.tsx",
     "example:basic": "node dist/examples/basic-usage.js",
     "example:embedding": "node dist/examples/embedding-usage.js",
@@ -60,17 +67,23 @@
   "dependencies": {
     "@huggingface/transformers": "^3.1.2",
     "@mlc-ai/web-llm": "^0.2.72",
-    "voy-search": "^0.6.2"
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "fake-indexeddb": "^6.0.0"
   },
   "devDependencies": {
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/react": "^16.3.2",
     "@types/node": "^22.10.2",
+    "@types/react": "^18.3.31",
     "@typescript-eslint/eslint-plugin": "^8.18.1",
     "@typescript-eslint/parser": "^8.18.1",
     "@vitest/ui": "^2.1.8",
     "@wllama/wllama": "^2.3.6",
     "eslint": "^9.17.0",
-    "fake-indexeddb": "^6.0.0",
     "happy-dom": "^15.11.7",
+    "playwright": "^1.61.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "typescript": "^5.7.2",
     "vite": "^6.0.3",
     "vite-plugin-dts": "^4.3.0",
@@ -79,7 +92,7 @@
     "vitest": "^2.1.8"
   },
   "peerDependencies": {
-    "@wllama/wllama": "^1.0.0"
+    "@wllama/wllama": "^2.0.0"
   },
   "peerDependenciesMeta": {
     "@wllama/wllama": {

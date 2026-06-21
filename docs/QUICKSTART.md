@@ -30,7 +30,7 @@ const db = new VectorDB({
     dbName: 'my-app',              // Your app name
   },
   index: {
-    indexType: 'kdtree',           // Index type
+    indexType: 'hnsw',           // Index type
     dimensions: 384,               // Must match embedding model
     metric: 'cosine',              // Distance metric
   },
@@ -188,7 +188,7 @@ async function main() {
   // 1. Create and initialize database
   const db = new VectorDB({
     storage: { dbName: 'quickstart-demo' },
-    index: { indexType: 'kdtree', dimensions: 384, metric: 'cosine' },
+    index: { indexType: 'hnsw', dimensions: 384, metric: 'cosine' },
     embedding: { model: 'Xenova/all-MiniLM-L6-v2', device: 'wasm' },
   });
 
@@ -282,7 +282,7 @@ main().catch(console.error);
     async function init() {
       db = new VectorDB({
         storage: { dbName: 'demo' },
-        index: { indexType: 'kdtree', dimensions: 384, metric: 'cosine' },
+        index: { indexType: 'hnsw', dimensions: 384, metric: 'cosine' },
         embedding: { model: 'Xenova/all-MiniLM-L6-v2', device: 'wasm' },
       });
 

@@ -3,7 +3,7 @@
 <br>
 
 <h1>
-  <img src="./assets/Frame 1.png" alt="Haven Logo" height="200" align="center"/>
+  <img src="./assets/Frame 1.png" alt="Domicile Logo" height="200" align="center"/>
 </h1>
 
 
@@ -11,16 +11,16 @@
 
 Vector database + RAG + LLM—all in the browser
 
-[![npm](https://img.shields.io/npm/v/haven)](https://www.npmjs.com/package/haven)
+[![npm](https://img.shields.io/npm/v/domicile)](https://www.npmjs.com/package/domicile)
 [![License](https://img.shields.io/badge/license-MIT-blue)](./LICENSE)
 
 </div>
 
 ---
 
-## Why Haven?
+## Why Domicile?
 
-Build RAG applications without cloud dependencies. All processing happens client-side using WebAssembly and WebGPU.
+Build RAG applications without cloud dependencies. All processing happens client-side using WebAssembly and WebGPU. Your data stays domiciled on the device — privacy as architecture, not policy.
 
 - 🔒 **Private**: Data never leaves the browser
 - ⚡ **Fast**: WebGPU acceleration with WASM fallback
@@ -31,14 +31,14 @@ Build RAG applications without cloud dependencies. All processing happens client
 ## Quick Start
 
 ```bash
-npm install haven
+npm install domicile
 ```
 
 ```typescript
-import Haven from 'haven';
+import Domicile from 'domicile';
 
 // Create database
-const db = new Haven({
+const db = new Domicile({
   storage: { dbName: 'my-app' },
   index: { dimensions: 384, metric: 'cosine' },
   embedding: { model: 'Xenova/all-MiniLM-L6-v2', device: 'wasm' },
@@ -48,13 +48,13 @@ await db.initialize();
 
 // Add documents
 await db.insert({
-  text: 'Haven is a privacy-first vector database for browsers',
+  text: 'Domicile is a privacy-first vector database for browsers',
   metadata: { category: 'intro' },
 });
 
 // Semantic search
 const results = await db.search({
-  text: 'What is Haven?',
+  text: 'What is Domicile?',
   k: 5,
 });
 
@@ -101,7 +101,7 @@ const results = await db.search({
 
 ### RAG Pipeline
 ```typescript
-import { RAGPipelineManager, WllamaProvider } from 'haven';
+import { RAGPipelineManager, WllamaProvider } from 'domicile';
 
 // Setup RAG with local LLM
 const llm = new WllamaProvider({ model: '...' });
@@ -119,7 +119,7 @@ console.log(result.sources); // Citations
 
 ### MCP Integration
 ```typescript
-import { MCPServer } from 'haven';
+import { MCPServer } from 'domicile';
 
 // Expose as MCP tools for AI agents
 const mcp = new MCPServer(db, rag);
@@ -146,7 +146,7 @@ const tools = mcp.getTools();
 
 ## Architecture
 
-Haven combines multiple technologies into a cohesive stack:
+Domicile combines multiple technologies into a cohesive stack:
 
 - **Storage**: IndexedDB for persistent vector storage
 - **Indexing**: Voy (WASM) for fast k-d tree search
@@ -217,7 +217,7 @@ graph TB
 
 ## Production Use
 
-Haven powers privacy-tier features at [Lexemo](https://lexemo.com), processing sensitive legal documents for EU law firms without cloud transmission.
+Domicile powers privacy-tier features at [Lexemo](https://lexemo.com), processing sensitive legal documents for EU law firms without cloud transmission.
 
 ## Development
 
@@ -279,7 +279,7 @@ MIT © 2024
 
 <div align="center">
 
-**[Documentation](./docs/QUICKSTART.md)** • **[Examples](./examples/README.md)** • **[GitHub](https://github.com/yourusername/haven)**
+**[Documentation](./docs/QUICKSTART.md)** • **[Examples](./examples/README.md)** • **[GitHub](https://github.com/kyrillosishak/domicile)**
 
 Built with ❤️ for privacy-conscious developers
 

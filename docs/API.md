@@ -45,7 +45,7 @@ interface StorageConfig {
 }
 
 interface IndexConfig {
-  indexType: 'kdtree';      // Index type (currently only kdtree)
+  indexType: 'hnsw';        // Index type (pure-TS HNSW)
   dimensions: number;       // Vector dimensions
   metric: 'cosine' | 'euclidean' | 'dot';  // Distance metric
   parameters?: Record<string, any>;        // Index-specific parameters
@@ -76,7 +76,7 @@ const db = new VectorDB({
     maxVectors: 100000,
   },
   index: {
-    indexType: 'kdtree',
+    indexType: 'hnsw',
     dimensions: 384,
     metric: 'cosine',
   },
@@ -509,14 +509,21 @@ Loads the serialized index from storage.
 
 ---
 
-## Index Manager
+## Index
 
-Vector indexing and similarity search using Voy WASM engine.
+Vector indexing and similarity search using the pure-TypeScript HNSW graph
+index (`HnswIndex`). Returns **real** similarity scores (cosine/euclidean/dot),
+supports non-rebuilding mark-based delete, and recall-guaranteed filtered
+search. It replaced the previous WASM k-d tree (Voy) after winning the
+benchmark gate on real scores, delete latency, and recall parity.
 
-### IndexManager
+> Construction is normally via `createDomicile()`, which wires an `HnswIndex`
+> through the injection seam. The `IndexManager` (Voy) class has been removed.
+
+### HnswIndex
 
 ```typescript
-class IndexManager
+class HnswIndex
 ```
 
 ### build()
@@ -549,7 +556,7 @@ Adds multiple vectors to the index.
 async remove(id: string): Promise<void>
 ```
 
-Removes a vector from the index.
+Removes a vector from the index (mark-based; no full rebuild).
 
 ### search()
 
@@ -561,7 +568,7 @@ async search(
 ): Promise<SearchResult[]>
 ```
 
-Searches for k nearest neighbors.
+Searches for k nearest neighbors. Returns hits with real scores.
 
 ### serialize()
 
