@@ -65,7 +65,7 @@
     "mcp",
     "transformers"
   ],
-  "author": "",
+  "author": "kyrillosishak <kyrillosishak16@gmail.com>",
   "license": "MIT",
   "dependencies": {
     "@huggingface/transformers": "^3.1.2",

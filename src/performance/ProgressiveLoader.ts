@@ -33,60 +33,18 @@ export class ProgressiveLoader {
   async *loadVectorsInChunks(
     storage: StorageManager
   ): AsyncGenerator<VectorRecord[], void, unknown> {
-    const total = await storage.count();
+    const all = await storage.getAll();
+    const total = all.length;
     let loaded = 0;
 
-    // Get all records using cursor-based iteration
-    const db = (storage as any).db as IDBDatabase;
-    if (!db) {
-      throw new Error('Storage not initialized');
+    for (let i = 0; i < total; i += this.config.chunkSize) {
+      const chunk = all.slice(i, i + this.config.chunkSize);
+      loaded += chunk.length;
+      if (this.config.onProgress) {
+        this.config.onProgress(loaded, total);
+      }
+      yield chunk;
     }
-
-    const transaction = db.transaction(['vectors'], 'readonly');
-    const store = transaction.objectStore('vectors');
-    const request = store.openCursor();
-
-    let chunk: VectorRecord[] = [];
-
-    await new Promise<void>((resolve, reject) => {
-      request.onsuccess = async (event) => {
-        const cursor = (event.target as IDBRequest).result as IDBCursorWithValue;
-
-        if (cursor) {
-          const serialized = cursor.value;
-          const record: VectorRecord = {
-            id: serialized.id,
-            vector: new Float32Array(serialized.vector),
-            metadata: serialized.metadata,
-            timestamp: serialized.timestamp,
-          };
-
-          chunk.push(record);
-          loaded++;
-
-          // Yield chunk when it reaches the configured size
-          if (chunk.length >= this.config.chunkSize) {
-            if (this.config.onProgress) {
-              this.config.onProgress(loaded, total);
-            }
-
-            // We can't yield from inside the callback, so we'll collect chunks
-            // and yield them in the generator
-            chunk = [];
-          }
-
-          cursor.continue();
-        } else {
-          // Yield remaining records
-          if (chunk.length > 0 && this.config.onProgress) {
-            this.config.onProgress(loaded, total);
-          }
-          resolve();
-        }
-      };
-
-      request.onerror = () => reject(request.error);
-    });
   }
 
   /**
@@ -171,43 +129,23 @@ export class ProgressiveLoader {
   async *exportInChunks(
     storage: StorageManager
   ): AsyncGenerator<any[], void, unknown> {
-    const db = (storage as any).db as IDBDatabase;
-    if (!db) {
-      throw new Error('Storage not initialized');
+    const all = await storage.getAll();
+    const total = all.length;
+    let loaded = 0;
+
+    for (let i = 0; i < total; i += this.config.chunkSize) {
+      const chunk = all.slice(i, i + this.config.chunkSize).map((r) => ({
+        id: r.id,
+        vector: Array.from(r.vector),
+        metadata: r.metadata,
+        timestamp: r.timestamp,
+      }));
+      loaded += chunk.length;
+      if (this.config.onProgress) {
+        this.config.onProgress(loaded, total);
+      }
+      yield chunk;
     }
-
-    const transaction = db.transaction(['vectors'], 'readonly');
-    const store = transaction.objectStore('vectors');
-    const request = store.openCursor();
-
-    let chunk: any[] = [];
-
-    await new Promise<void>((resolve, reject) => {
-      request.onsuccess = (event) => {
-        const cursor = (event.target as IDBRequest).result as IDBCursorWithValue;
-
-        if (cursor) {
-          const serialized = cursor.value;
-          chunk.push({
-            id: serialized.id,
-            vector: Array.from(new Float32Array(serialized.vector)),
-            metadata: serialized.metadata,
-            timestamp: serialized.timestamp,
-          });
-
-          if (chunk.length >= this.config.chunkSize) {
-            // Store chunk reference for yielding
-            chunk = [];
-          }
-
-          cursor.continue();
-        } else {
-          resolve();
-        }
-      };
-
-      request.onerror = () => reject(request.error);
-    });
   }
 
   /**
