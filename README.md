@@ -256,7 +256,7 @@ MIT © 2026
 
 <div align="center">
 
-**[Documentation](./docs/QUICKSTART.md)** • **[Examples](./examples/README.md)** • **[GitHub](https://github.com/kyrillosishak/domicile)**
+**[Documentation](./docs/QUICKSTART.md)** • **[Examples](./examples/README.md)** • **[GitHub](https://github.com/kyrillosishak/Domicile)**
 
 Built for privacy-conscious legal and integration teams
 
