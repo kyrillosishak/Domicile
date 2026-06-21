@@ -34,7 +34,7 @@ npm install @kyrillosishak/domicile
 ```
 
 ```typescript
-import Domicile from 'domicile';
+import Domicile from '@kyrillosishak/domicile';
 
 // A private, in-browser custody layer
 const db = new Domicile({
@@ -91,7 +91,7 @@ console.log(stats.vectorCount, stats.memoryUsage);
 
 ### RAG Pipeline
 ```typescript
-import { RAGPipelineManager, WllamaProvider } from 'domicile';
+import { RAGPipelineManager, WllamaProvider } from '@kyrillosishak/domicile';
 
 const llm = new WllamaProvider({ model: '...' });
 const rag = new RAGPipelineManager(db, llm, embedding);
@@ -108,7 +108,7 @@ console.log(result.sources); // Cited source documents
 
 ### MCP Integration
 ```typescript
-import { MCPServer } from 'domicile';
+import { MCPServer } from '@kyrillosishak/domicile';
 
 // Expose your custody layer as tools for AI agents
 const mcp = new MCPServer(db, rag);

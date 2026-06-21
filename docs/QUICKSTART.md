@@ -7,14 +7,14 @@ Get started with Domicile in 5 minutes. This guide covers installation, basic se
 ### NPM
 
 ```bash
-npm install domicile
+npm install @kyrillosishak/domicile
 ```
 
 ### CDN (ES Modules)
 
 ```html
 <script type="module">
-  import { VectorDB } from 'https://cdn.jsdelivr.net/npm/domicile@latest/dist/index.js';
+  import { VectorDB } from 'https://cdn.jsdelivr.net/npm/@kyrillosishak/domicile@latest/dist/index.js';
 </script>
 ```
 
@@ -23,7 +23,7 @@ npm install domicile
 ### 1. Create a Database
 
 ```typescript
-import { VectorDB } from 'domicile';
+import { VectorDB } from '@kyrillosishak/domicile';
 
 const db = new VectorDB({
   storage: {
@@ -182,7 +182,7 @@ console.log('Database cleared');
 Here's a complete working example:
 
 ```typescript
-import { VectorDB } from 'domicile';
+import { VectorDB } from '@kyrillosishak/domicile';
 
 async function main() {
   // 1. Create and initialize database
@@ -275,7 +275,7 @@ main().catch(console.error);
   <div id="results"></div>
 
   <script type="module">
-    import { VectorDB } from 'https://cdn.jsdelivr.net/npm/domicile@latest/dist/index.js';
+    import { VectorDB } from 'https://cdn.jsdelivr.net/npm/@kyrillosishak/domicile@latest/dist/index.js';
 
     let db;
 

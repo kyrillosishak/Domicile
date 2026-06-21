@@ -89,7 +89,7 @@ Options:
     JSON.stringify(
       {
         dependencies: {
-          domicile: '^0.2.0',
+          '@kyrillosishak/domicile': '^0.2.0',
         },
       },
       null,
@@ -101,7 +101,7 @@ Options:
   console.log(`  index.ts          createDomicile() wired with ${template.embeddingModel} (${template.dimensions}d)`);
   if (template.matterScope) console.log(`  matter scope       ${template.matterScope}`);
   console.log(`  suggested LLM      ${template.llmHint}`);
-  console.log(`\nNext: cd ${outDir} && npm install domicile && npx tsx index.ts`);
+  console.log(`\nNext: cd ${outDir} && npm install @kyrillosishak/domicile && npx tsx index.ts`);
   return 0;
 }
 
@@ -110,7 +110,7 @@ function renderEntry(t: Template): string {
 // Domicile runs entirely on-device; no data egresses except model-weight
 // downloads (cache-once). See docs/PRODUCT_DESIGN.md.
 
-import { createDomicile, MCPServer, RAGPipelineManager, FallbackLLMProvider, WebLLMProvider, WllamaProvider } from 'domicile';
+import { createDomicile, MCPServer, RAGPipelineManager, FallbackLLMProvider, WebLLMProvider, WllamaProvider } from '@kyrillosishak/domicile';
 
 async function main() {
   const db = await createDomicile({
