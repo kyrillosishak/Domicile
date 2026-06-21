@@ -1,6 +1,9 @@
 {
-  "name": "domicile",
+  "name": "@kyrillosishak/domicile",
   "version": "0.2.0",
+  "publishConfig": {
+    "access": "public"
+  },
   "description": "Domicile — your private AI stack. Vector database + RAG + LLM, all in the browser. Architectural data custody.",
   "type": "module",
   "main": "./dist/index.js",
@@ -68,7 +71,9 @@
     "@huggingface/transformers": "^3.1.2",
     "@mlc-ai/web-llm": "^0.2.72",
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "fake-indexeddb": "^6.0.0"
+    "fake-indexeddb": "^6.0.0",
+    "hnswlib-wasm": "^0.8.2",
+    "onnxruntime-web": "^1.27.0"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.1",

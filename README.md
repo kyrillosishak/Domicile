@@ -10,7 +10,7 @@
 
 On-prem privacy, in the browser — vector database, RAG, and local LLM. All processing stays client-side, with zero egress.
 
-[![npm](https://img.shields.io/npm/v/domicile)](https://www.npmjs.com/package/domicile)
+[![npm](https://img.shields.io/npm/v/@kyrillosishak/domicile)](https://www.npmjs.com/package/@kyrillosishak/domicile)
 [![License](https://img.shields.io/badge/license-MIT-blue)](./LICENSE)
 
 </div>
@@ -30,7 +30,7 @@ Domicile is a private AI stack — vector database, RAG, and a local LLM that ru
 ## Quick Start
 
 ```bash
-npm install domicile
+npm install @kyrillosishak/domicile
 ```
 
 ```typescript
