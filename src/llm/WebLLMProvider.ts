@@ -51,6 +51,18 @@ export class WebLLMProvider implements LLMProvider {
         );
       }
 
+      // Pre-flight the model against device memory/tier BEFORE the multi-GB
+      // download (TECHNICAL_VALIDATION risk #10). Unknown models pass through.
+      const { getModelRegistry } = await import('../core/ModelRegistry.js');
+      const { detectCapabilities } = await import('../core/capabilities.js');
+      const caps = await detectCapabilities();
+      const preflight = getModelRegistry().canRunLLMModel(this.config.model, caps);
+      if (!preflight.canRun) {
+        throw new Error(
+          `WebLLM model ${this.config.model} is not runnable on this device: ${preflight.reason}`
+        );
+      }
+
       // Dynamic import of WebLLM to avoid bundling issues
       const { CreateMLCEngine } = await import('@mlc-ai/web-llm');
 
@@ -74,6 +86,15 @@ export class WebLLMProvider implements LLMProvider {
 
       throw new Error(`Failed to initialize WebLLMProvider: ${errorMessage}`);
     }
+  }
+
+  /**
+   * Non-throwing capability probe. WebLLM is available iff a functional
+   * WebGPU adapter is present. Used by FallbackLLMProvider to decide
+   * whether to even attempt initialization.
+   */
+  async isAvailable(): Promise<boolean> {
+    return this.checkWebGPUAvailability();
   }
 
   private async checkWebGPUAvailability(): Promise<boolean> {

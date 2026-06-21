@@ -9,7 +9,7 @@ export interface StorageConfig {
 }
 
 export interface IndexConfig {
-  indexType: 'kdtree' | 'hnsw';
+  indexType: 'hnsw';
   dimensions: number;
   metric: 'cosine' | 'euclidean' | 'dot';
   parameters?: Record<string, any>;
@@ -48,6 +48,20 @@ export interface VectorDBConfig {
   embedding: EmbeddingConfig;
   llm?: LLMConfig;
   performance?: PerformanceConfig;
+}
+
+/**
+ * Injection-based config. When provided, the facade uses these instances
+ * directly instead of instantiating concrete adapters — the seam that makes
+ * every runtime component swappable. `createDomicile()` wires the defaults.
+ */
+export interface InjectedConfig {
+  storage: import('../storage/types').StorageManager;
+  embedding?: import('../embedding/types').EmbeddingGenerator;
+  index: import('./contracts').Index;
+  performance?: PerformanceConfig;
+  dimensions: number;
+  metric?: 'cosine' | 'euclidean' | 'dot';
 }
 
 export interface InsertData {

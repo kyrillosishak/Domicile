@@ -113,7 +113,12 @@ export class TransformersEmbedding implements EmbeddingGenerator {
   }
 
   /**
-   * Generate embeddings for multiple texts in batch
+   * Generate embeddings for multiple texts in batch.
+   *
+   * Uses a single batched pipeline call rather than looping `embed` per
+   * text, which leaves significant throughput on the table for bulk ingest
+   * (Transformers.js supports batched inference natively). Falls back to
+   * sequential generation only if the batched output shape is unexpected.
    */
   async embedBatch(texts: string[]): Promise<Float32Array[]> {
     this.ensureInitialized();
@@ -122,15 +127,71 @@ export class TransformersEmbedding implements EmbeddingGenerator {
       return [];
     }
 
-    // Process in batch for efficiency
-    const embeddings: Float32Array[] = [];
-    
-    for (const text of texts) {
-      const embedding = await this.generateEmbedding(text);
-      embeddings.push(embedding);
+    if (!this.pipeline) {
+      throw new Error('Pipeline not initialized');
     }
 
-    return embeddings;
+    try {
+      const output = await this.pipeline(texts, {
+        pooling: 'mean',
+        normalize: true,
+      });
+
+      return this.extractEmbeddingsBatch(output, texts.length);
+    } catch (error) {
+      // If the batched call fails (some pipelines reject arrays), fall back
+      // to sequential generation so callers still get a result.
+      const embeddings: Float32Array[] = [];
+      for (const text of texts) {
+        embeddings.push(await this.generateEmbedding(text));
+      }
+      return embeddings;
+    }
+  }
+
+  /**
+   * Extract an array of Float32Array embeddings from a batched pipeline output.
+   * Handles the 2D / nested shapes Transformers.js can return.
+   */
+  private extractEmbeddingsBatch(output: any, expectedCount: number): Float32Array[] {
+    // Tensor-like output with .tolist() (most common Transformers.js shape).
+    if (output?.tolist) {
+      const data = output.tolist();
+      if (Array.isArray(data) && Array.isArray(data[0])) {
+        return data.map((row: any) => new Float32Array(row));
+      }
+      // Single embedding returned despite batch input.
+      if (Array.isArray(data)) {
+        return [new Float32Array(data)];
+      }
+    }
+
+    // Tensor-like output with .data as a flat Float32Array of length count*dim.
+    if (output?.data instanceof Float32Array) {
+      const flat = output.data as Float32Array;
+      const dims = this.dimensions || (flat.length / expectedCount);
+      if (dims > 0 && flat.length % dims === 0) {
+        const count = flat.length / dims;
+        const out: Float32Array[] = [];
+        for (let i = 0; i < count; i++) {
+          out.push(flat.subarray(i * dims, (i + 1) * dims));
+        }
+        return out;
+      }
+      return [flat];
+    }
+
+    // Nested array form.
+    if (Array.isArray(output?.data) && Array.isArray(output.data[0])) {
+      return output.data.map((row: any) => new Float32Array(row));
+    }
+
+    // Last resort: try the single-embedding extractor per row.
+    try {
+      return [this.extractEmbedding(output)];
+    } catch {
+      throw new Error('Unexpected batched output format from embedding pipeline');
+    }
   }
 
   /**

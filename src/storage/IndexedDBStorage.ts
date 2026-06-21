@@ -292,6 +292,88 @@ export class IndexedDBStorage implements StorageManager {
   }
 
   /**
+   * Stream all vector records one at a time via a cursor.
+   *
+   * Unlike `getAll()`, this never materializes the full result set in
+   * memory — the cursor advances one record at a time and each is
+   * yielded before the next is fetched. This is what makes
+   * `VectorDB.exportStream()` a true stream rather than a buffered one.
+   */
+  async *stream(): AsyncGenerator<VectorRecord, void, unknown> {
+    this.ensureInitialized();
+
+    // The transaction stays alive for the lifetime of the generator: each
+    // `cursor.continue()` is a request against it, which keeps it from
+    // auto-committing between yields.
+    const transaction = this.db!.transaction([VECTORS_STORE], 'readonly');
+    const store = transaction.objectStore(VECTORS_STORE);
+    const request = store.openCursor();
+
+    // Promise-per-continue: each cursor advance resolves `nextCursor()`.
+    let resolveCursor: ((c: IDBCursorWithValue | null) => void) | null = null;
+    let pendingCursor: IDBCursorWithValue | null = null;
+    let streamError: Error | null = null;
+
+    request.onsuccess = (event) => {
+      const cursor = (event.target as IDBRequest).result as IDBCursorWithValue | null;
+      if (resolveCursor) {
+        const r = resolveCursor;
+        resolveCursor = null;
+        r(cursor);
+      } else {
+        pendingCursor = cursor;
+      }
+    };
+
+    request.onerror = () => {
+      streamError = new VectorDBError(
+        'Failed to stream vectors',
+        'STORAGE_STREAM_ERROR',
+        { error: request.error }
+      );
+      if (resolveCursor) {
+        const r = resolveCursor;
+        resolveCursor = null;
+        r(null);
+      }
+    };
+
+    const nextCursor = (): Promise<IDBCursorWithValue | null> =>
+      new Promise((resolve) => {
+        if (streamError) {
+          resolve(null);
+          return;
+        }
+        if (pendingCursor !== null) {
+          const c = pendingCursor;
+          pendingCursor = null;
+          resolve(c);
+        } else {
+          resolveCursor = resolve;
+        }
+      });
+
+    try {
+      let cursor = await nextCursor();
+      while (cursor) {
+        const record = this.deserializeRecord(cursor.value);
+        yield record;
+        cursor.continue();
+        cursor = await nextCursor();
+      }
+      if (streamError) throw streamError;
+    } finally {
+      // Release the transaction if the consumer breaks early (break/return
+      // in a for-await). Aborting an already-completed transaction throws.
+      try {
+        transaction.abort();
+      } catch {
+        // Transaction already finished — nothing to release.
+      }
+    }
+  }
+
+  /**
    * Delete a vector record by ID
    */
   async delete(id: string): Promise<boolean> {
@@ -538,19 +620,25 @@ export class IndexedDBStorage implements StorageManager {
   }
 
   /**
-   * Serialize a vector record for storage
+   * Serialize a vector record for storage.
+   * The Float32Array is stored by reference — IndexedDB's structured clone
+   * handles typed arrays natively, which avoids the ~8x memory spike of
+   * `Array.from` (a 384-dim Float32Array became a 384-element JS array of
+   * boxed numbers per record, per batch write).
    */
   private serializeRecord(record: VectorRecord): any {
     return {
       id: record.id,
-      vector: Array.from(record.vector), // Convert Float32Array to regular array
+      vector: record.vector,
       metadata: record.metadata,
       timestamp: record.timestamp
     };
   }
 
   /**
-   * Deserialize a stored record back to VectorRecord
+   * Deserialize a stored record back to VectorRecord.
+   * Handles both the native typed-array form (new) and the legacy plain-array
+   * form written by older versions, for back-compat during migration.
    */
   private deserializeRecord(data: any): VectorRecord {
     if (!data.id || !data.vector || !data.metadata || !data.timestamp) {
@@ -561,9 +649,13 @@ export class IndexedDBStorage implements StorageManager {
       );
     }
 
+    const vector: Float32Array = data.vector instanceof Float32Array
+      ? data.vector
+      : new Float32Array(data.vector);
+
     return {
       id: data.id,
-      vector: new Float32Array(data.vector),
+      vector,
       metadata: data.metadata,
       timestamp: data.timestamp
     };
