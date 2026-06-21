@@ -8,6 +8,8 @@
 
 **Your data, domiciled on your device.**
 
+<br>
+
 On-prem privacy, in the browser — vector database, RAG, and local LLM. All processing stays client-side, with zero egress.
 
 [![npm](https://img.shields.io/npm/v/@kyrillosishak/domicile)](https://www.npmjs.com/package/@kyrillosishak/domicile)
