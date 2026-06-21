@@ -17,7 +17,8 @@
     "@wllama/wllama": "https://cdn.jsdelivr.net/npm/@wllama/wllama@2.3.6/+esm",
     "@modelcontextprotocol/sdk": "https://cdn.jsdelivr.net/npm/@modelcontextprotocol/sdk@1.29.0/+esm",
     "react": "https://cdn.jsdelivr.net/npm/react@18.3.1/+esm",
-    "react-dom": "https://cdn.jsdelivr.net/npm/react-dom@18.3.1/+esm"
+    "react-dom": "https://cdn.jsdelivr.net/npm/react-dom@18.3.1/+esm",
+    "@kyrillosishak/domicile": "https://cdn.jsdelivr.net/npm/@kyrillosishak/domicile@0.2.0/+esm"
   }
 }
 </script>
@@ -326,7 +327,7 @@ set('c-sab',typeof SharedArrayBuffer!=='undefined','available','needs COOP/COEP'
   const DIMS=384;
   async function bootEngine(){
     try{
-      const Domicile=await import('../dist/index.js');
+      const Domicile=await import('@kyrillosishak/domicile');
       db=await Domicile.createDomicile({
         storage:{dbName:'domicile-showcase'},
         dimensions:DIMS, metric:'cosine',
@@ -421,7 +422,7 @@ set('c-sab',typeof SharedArrayBuffer!=='undefined','available','needs COOP/COEP'
       ragRunBtn.disabled=false;agentRunBtn.disabled=false;
       document.getElementById('agent-hint').style.display='none';
       // Build the RAG pipeline over the same engine + corpus embeddings.
-      const {RAGPipelineManager}=await import('../dist/index.js');
+      const {RAGPipelineManager}=await import('@kyrillosishak/domicile');
       rag=new RAGPipelineManager({vectorDB:db,llmProvider:webllmProvider(llm),embeddingGenerator:db.embeddingGenerator,hybridByDefault:true});
     }catch(err){
       llmLoadBtn.disabled=false;llmLoadTxt.textContent='Download & load';
