@@ -292,7 +292,7 @@ footer{border-top:1px solid var(--line);padding:80px 0 48px;background:var(--bg)
       <a href="#architecture">Architecture</a>
     </div>
     <div class="nav-cta">
-      <a class="btn btn-ghost" href="https://www.npmjs.com/package/domicile" target="_blank" rel="noopener">npm</a>
+      <a class="btn btn-ghost" href="https://www.npmjs.com/package/@kyrillosishak/domicile" target="_blank" rel="noopener">npm</a>
       <a class="btn btn-ox" href="#code">Get started <span class="arr">→</span></a>
     </div>
   </div>
@@ -310,7 +310,7 @@ footer{border-top:1px solid var(--line);padding:80px 0 48px;background:var(--bg)
     <div class="hero-cta">
       <a class="btn btn-primary" href="./playground.html">See it work <span class="arr">→</span></a>
       <a class="btn btn-ghost" href="#audiences">For law firms &amp; integrators</a>
-      <span class="muted" style="font-size:13.5px;font-family:var(--mono)">$ npm install domicile</span>
+      <span class="muted" style="font-size:13.5px;font-family:var(--mono)">$ npm install @kyrillosishak/domicile</span>
     </div>
     <div class="hero-meta">
       <div class="item"><div class="n"><span data-count="0">0</span></div><div class="l">Bytes egressing the device — ever</div></div>
@@ -449,7 +449,7 @@ footer{border-top:1px solid var(--line);padding:80px 0 48px;background:var(--bg)
         <div class="fname">domicile.ts</div>
       </div>
       <div class="code-body">
-<pre class="code-pane on" data-pane="quick"><span class="com">// npm install domicile</span>
+<pre class="code-pane on" data-pane="quick"><span class="com">// npm install @kyrillosishak/domicile</span>
 <span class="kw">import</span> Domicile <span class="kw">from</span> <span class="str">'domicile'</span>;
 
 <span class="com">// A private, in-browser custody layer</span>
@@ -484,7 +484,7 @@ console.<span class="fn">log</span>(results);</pre>
 <span class="kw">const</span> stats: <span class="ty">IndexStats</span> = <span class="kw">await</span> db.<span class="fn">stats</span>();
 console.<span class="fn">log</span>(stats.vectorCount, stats.memoryUsage);</pre>
 
-<pre class="code-pane" data-pane="rag"><span class="kw">import</span> { RAGPipelineManager, WllamaProvider } <span class="kw">from</span> <span class="str">'domicile'</span>;
+<pre class="code-pane" data-pane="rag"><span class="kw">import</span> { RAGPipelineManager, WllamaProvider } <span class="kw">from</span> <span class="str">'@kyrillosishak/domicile'</span>;
 
 <span class="kw">const</span> llm = <span class="kw">new</span> <span class="fn">WllamaProvider</span>({ model: <span class="str">'...'</span> });
 <span class="kw">const</span> rag = <span class="kw">new</span> <span class="fn">RAGPipelineManager</span>(db, llm, embedding);
@@ -498,7 +498,7 @@ console.<span class="fn">log</span>(stats.vectorCount, stats.memoryUsage);</pre>
 console.<span class="fn">log</span>(result.answer);   <span class="com">// generated response</span>
 console.<span class="fn">log</span>(result.sources);  <span class="com">// cited source documents</span></pre>
 
-<pre class="code-pane" data-pane="mcp"><span class="kw">import</span> { MCPServer } <span class="kw">from</span> <span class="str">'domicile'</span>;
+<pre class="code-pane" data-pane="mcp"><span class="kw">import</span> { MCPServer } <span class="kw">from</span> <span class="str">'@kyrillosishak/domicile'</span>;
 
 <span class="com">// Expose your custody layer as tools for AI agents</span>
 <span class="kw">const</span> mcp = <span class="kw">new</span> <span class="fn">MCPServer</span>(db, rag);
@@ -611,7 +611,7 @@ mcp.<span class="fn">serve</span>({ transport: <span class="str">'stdio'</span> 
     <h2 class="h2" style="margin-top:24px">On-prem custody,<br><span class="it ox">without the on-prem.</span></h2>
     <p>Zero infrastructure. Zero egress. Zero third-party processors. Just the device, the data, and a library that keeps the two together.</p>
     <div class="cta-actions">
-      <a class="btn btn-ox" href="https://www.npmjs.com/package/domicile" target="_blank" rel="noopener">Install Domicile <span class="arr">→</span></a>
+      <a class="btn btn-ox" href="https://www.npmjs.com/package/@kyrillosishak/domicile" target="_blank" rel="noopener">Install Domicile <span class="arr">→</span></a>
       <a class="btn btn-ghost" href="https://github.com/kyrillosishak/domicile" target="_blank" rel="noopener">View on GitHub</a>
     </div>
   </div>
@@ -645,7 +645,7 @@ mcp.<span class="fn">serve</span>({ transport: <span class="str">'stdio'</span> 
       <div class="foot-col">
         <h5>Project</h5>
         <a href="https://github.com/kyrillosishak/domicile">GitHub</a>
-        <a href="https://www.npmjs.com/package/domicile">npm</a>
+        <a href="https://www.npmjs.com/package/@kyrillosishak/domicile">npm</a>
         <a href="../docs/MIGRATION.md">Migration</a>
         <a href="../docs/TROUBLESHOOTING.md">Troubleshooting</a>
       </div>

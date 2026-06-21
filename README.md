@@ -3,7 +3,15 @@
 <br>
 
 <h1>
-  <img src="./assets/Frame 1.png" alt="Domicile Logo" height="200" align="center"/>
+  <svg viewBox="0 0 48 48" width="64" height="64" style="display:block;margin:0 auto 12px;color:#7C3027">
+    <circle cx="24" cy="25" r="21" fill="none" stroke="currentColor" stroke-width="1.5"/>
+    <circle cx="24" cy="25" r="17.5" fill="none" stroke="currentColor" stroke-width="0.6" opacity="0.4"/>
+    <path d="M15 27 L24 19 L33 27" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M17.5 27 V33 H30.5 V27" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+    <path d="M22 33 V29 Q24 27.4 26 29 V33" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+    <path d="M24 3.5 L26.3 6 L24 8.5 L21.7 6 Z" fill="currentColor"/>
+  </svg>
+  <span style="font-family:Georgia,serif;font-weight:500;font-size:28px;letter-spacing:-.02em;color:#1A1916">Domicile <span style="font-style:italic;font-weight:400;color:#76736B;font-size:22px">/ data custody</span></span>
 </h1>
 
 **Your data, domiciled on your device.**
