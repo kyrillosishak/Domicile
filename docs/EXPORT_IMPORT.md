@@ -22,7 +22,7 @@ import { VectorDB } from '@vectordb/browser-vectordb';
 
 const db = new VectorDB({
   storage: { dbName: 'my-db' },
-  index: { dimensions: 384, metric: 'cosine', indexType: 'kdtree' },
+  index: { dimensions: 384, metric: 'cosine', indexType: 'hnsw' },
   embedding: { model: 'Xenova/all-MiniLM-L6-v2', device: 'wasm' },
 });
 
@@ -361,7 +361,7 @@ Migrate data from one database to another:
 // Export from source database
 const sourceDb = new VectorDB({
   storage: { dbName: 'source-db' },
-  index: { dimensions: 384, metric: 'cosine', indexType: 'kdtree' },
+  index: { dimensions: 384, metric: 'cosine', indexType: 'hnsw' },
   embedding: { model: 'Xenova/all-MiniLM-L6-v2', device: 'wasm' },
 });
 
@@ -372,7 +372,7 @@ await sourceDb.dispose();
 // Import to target database
 const targetDb = new VectorDB({
   storage: { dbName: 'target-db' },
-  index: { dimensions: 384, metric: 'cosine', indexType: 'kdtree' },
+  index: { dimensions: 384, metric: 'cosine', indexType: 'hnsw' },
   embedding: { model: 'Xenova/all-MiniLM-L6-v2', device: 'wasm' },
 });
 

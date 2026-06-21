@@ -28,8 +28,8 @@ describe('VectorDB', () => {
     const dbName = `test-db-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     config = {
       storage: { dbName },
-      index: { dimensions: 384, metric: 'cosine', indexType: 'kdtree' },
-      embedding: { 
+      index: { dimensions: 384, metric: 'cosine', indexType: 'hnsw' },
+      embedding: {
         model: 'Xenova/all-MiniLM-L6-v2',
         device: 'wasm',
         cache: true
@@ -499,12 +499,86 @@ describe('VectorDB', () => {
     it('should skip schema validation when disabled', async () => {
       await db.insert({ text: 'Test' });
       const exportData = await db.export();
-      
+
       await db.clear();
-      
+
       // Should not throw even with validation disabled
       await db.import(exportData, { validateSchema: false });
       expect(await db.size()).toBe(1);
+    }, 30000);
+
+    it('should yield vectors incrementally from exportStream, not as one batch', async () => {
+      // Force a small chunk size so a true stream yields many vector chunks.
+      const streamConfig: VectorDBConfig = {
+        storage: { dbName: `stream-db-${Date.now()}-${Math.random().toString(36).slice(2, 9)}` },
+        index: { dimensions: 384, metric: 'cosine', indexType: 'hnsw' },
+        embedding: { model: 'Xenova/all-MiniLM-L6-v2', device: 'wasm', cache: true },
+        performance: { chunkSize: 10 } as any,
+      };
+      const streamingDb = new VectorDB(streamConfig);
+      await streamingDb.initialize();
+
+      // A corpus large enough to span several chunks at chunkSize 10.
+      const docs = Array.from({ length: 50 }, (_, i) => ({
+        text: `Document ${i}`,
+        metadata: { index: i },
+      }));
+      await streamingDb.insertBatch(docs);
+
+      const chunks: any[] = [];
+      const progressUpdates: Array<{ loaded: number; total: number }> = [];
+      for await (const chunk of streamingDb.exportStream({
+        onProgress: (loaded, total) => progressUpdates.push({ loaded, total }),
+      })) {
+        chunks.push(chunk);
+      }
+
+      await streamingDb.dispose();
+
+      const vectorChunks = chunks.filter((c) => c.type === 'vectors');
+      const allVectors = vectorChunks.flatMap((c) => c.data);
+
+      // The whole point of the fix: more than one vector chunk means the
+      // stream yielded as the cursor advanced, rather than buffering all 50
+      // into one array and yielding once at the end.
+      expect(vectorChunks.length).toBeGreaterThan(1);
+      expect(allVectors).toHaveLength(50);
+
+      // Metadata + index chunks are present too.
+      expect(chunks.find((c) => c.type === 'metadata')).toBeDefined();
+      expect(chunks.find((c) => c.type === 'index')).toBeDefined();
+
+      // Progress was reported as records streamed.
+      expect(progressUpdates.length).toBeGreaterThan(0);
+      const last = progressUpdates[progressUpdates.length - 1];
+      expect(last.loaded).toBe(50);
+      expect(last.total).toBe(50);
+    }, 30000);
+
+    it('should support breaking early out of exportStream without hanging', async () => {
+      const streamConfig: VectorDBConfig = {
+        storage: { dbName: `stream-early-db-${Date.now()}-${Math.random().toString(36).slice(2, 9)}` },
+        index: { dimensions: 384, metric: 'cosine', indexType: 'hnsw' },
+        embedding: { model: 'Xenova/all-MiniLM-L6-v2', device: 'wasm', cache: true },
+        performance: { chunkSize: 5 } as any,
+      };
+      const streamingDb = new VectorDB(streamConfig);
+      await streamingDb.initialize();
+
+      const docs = Array.from({ length: 30 }, (_, i) => ({
+        text: `Document ${i}`,
+        metadata: { index: i },
+      }));
+      await streamingDb.insertBatch(docs);
+
+      let seen = 0;
+      for await (const _chunk of streamingDb.exportStream()) {
+        seen++;
+        if (seen >= 2) break; // consumer abandons mid-stream
+      }
+
+      await streamingDb.dispose();
+      expect(seen).toBeGreaterThanOrEqual(2);
     }, 30000);
   });
 

@@ -1,20 +1,20 @@
 # Quickstart Guide
 
-Get started with Haven in 5 minutes. This guide covers installation, basic setup, and common operations.
+Get started with Domicile in 5 minutes. This guide covers installation, basic setup, and common operations.
 
 ## Installation
 
 ### NPM
 
 ```bash
-npm install haven
+npm install domicile
 ```
 
 ### CDN (ES Modules)
 
 ```html
 <script type="module">
-  import { VectorDB } from 'https://cdn.jsdelivr.net/npm/haven@latest/dist/index.js';
+  import { VectorDB } from 'https://cdn.jsdelivr.net/npm/domicile@latest/dist/index.js';
 </script>
 ```
 
@@ -23,14 +23,14 @@ npm install haven
 ### 1. Create a Database
 
 ```typescript
-import { VectorDB } from 'haven';
+import { VectorDB } from 'domicile';
 
 const db = new VectorDB({
   storage: {
     dbName: 'my-app',              // Your app name
   },
   index: {
-    indexType: 'kdtree',           // Index type
+    indexType: 'hnsw',           // Index type
     dimensions: 384,               // Must match embedding model
     metric: 'cosine',              // Distance metric
   },
@@ -182,13 +182,13 @@ console.log('Database cleared');
 Here's a complete working example:
 
 ```typescript
-import { VectorDB } from 'haven';
+import { VectorDB } from 'domicile';
 
 async function main() {
   // 1. Create and initialize database
   const db = new VectorDB({
     storage: { dbName: 'quickstart-demo' },
-    index: { indexType: 'kdtree', dimensions: 384, metric: 'cosine' },
+    index: { indexType: 'hnsw', dimensions: 384, metric: 'cosine' },
     embedding: { model: 'Xenova/all-MiniLM-L6-v2', device: 'wasm' },
   });
 
@@ -275,14 +275,14 @@ main().catch(console.error);
   <div id="results"></div>
 
   <script type="module">
-    import { VectorDB } from 'https://cdn.jsdelivr.net/npm/haven@latest/dist/index.js';
+    import { VectorDB } from 'https://cdn.jsdelivr.net/npm/domicile@latest/dist/index.js';
 
     let db;
 
     async function init() {
       db = new VectorDB({
         storage: { dbName: 'demo' },
-        index: { indexType: 'kdtree', dimensions: 384, metric: 'cosine' },
+        index: { indexType: 'hnsw', dimensions: 384, metric: 'cosine' },
         embedding: { model: 'Xenova/all-MiniLM-L6-v2', device: 'wasm' },
       });
 

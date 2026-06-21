@@ -11,11 +11,11 @@ export interface MockPipelineOptions {
 
 export interface MockPipelineOutput {
   data: Float32Array;
-  tolist: () => number[];
+  tolist: () => number[] | number[][];
 }
 
 export interface MockPipeline {
-  (input: string | ImageData | Blob, config?: any): Promise<MockPipelineOutput>;
+  (input: string | ImageData | Blob | string[], config?: any): Promise<MockPipelineOutput>;
   dispose?: () => Promise<void>;
   _mockState?: MockState;
 }
@@ -88,7 +88,7 @@ export function createMockPipeline(options: MockPipelineOptions = {}): MockPipel
 
   // Create the mock pipeline function
   const mockPipeline: MockPipeline = async (
-    input: string | ImageData | Blob,
+    input: string | ImageData | Blob | string[],
     _config?: any
   ): Promise<MockPipelineOutput> => {
     if (state.disposed) {
@@ -98,6 +98,28 @@ export function createMockPipeline(options: MockPipelineOptions = {}): MockPipel
     // Simulate processing delay if configured
     if (simulateDelay > 0) {
       await new Promise(resolve => setTimeout(resolve, simulateDelay));
+    }
+
+    // Batched input: an array of strings. Real Transformers.js returns a
+    // 2D output (count × dims); the mock mirrors that with a flat
+    // Float32Array of length count*dims and a 2D tolist().
+    if (Array.isArray(input)) {
+      const rows = input.map((t) =>
+        deterministicEmbeddings
+          ? generateDeterministicEmbedding(t, dimensions)
+          : new Float32Array(dimensions).map(() => Math.random() - 0.5)
+      );
+      const flat = new Float32Array(rows.length * dimensions);
+      for (let i = 0; i < rows.length; i++) flat.set(rows[i], i * dimensions);
+
+      state.callCount++;
+      state.lastInput = input.join('\n');
+      const batchOutput: MockPipelineOutput = {
+        data: flat,
+        tolist: () => rows.map((r) => Array.from(r)),
+      };
+      state.lastOutput = batchOutput;
+      return batchOutput;
     }
 
     // Convert input to string for hashing

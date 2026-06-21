@@ -27,7 +27,7 @@ import { VectorDB, RAGPipelineManager, WllamaProvider, TransformersEmbedding } f
 // Create vector database
 const db = new VectorDB({
   storage: { dbName: 'rag-demo' },
-  index: { indexType: 'kdtree', dimensions: 384, metric: 'cosine' },
+  index: { indexType: 'hnsw', dimensions: 384, metric: 'cosine' },
   embedding: { model: 'Xenova/all-MiniLM-L6-v2', device: 'wasm' },
 });
 
@@ -322,7 +322,7 @@ class RAGApplication {
     // Setup database
     this.db = new VectorDB({
       storage: { dbName: 'rag-app' },
-      index: { indexType: 'kdtree', dimensions: 384, metric: 'cosine' },
+      index: { indexType: 'hnsw', dimensions: 384, metric: 'cosine' },
       embedding: { model: 'Xenova/all-MiniLM-L6-v2', device: 'wasm' },
     });
 
@@ -500,7 +500,7 @@ main().catch(console.error);
     async function init() {
       const db = new VectorDB({
         storage: { dbName: 'chatbot' },
-        index: { indexType: 'kdtree', dimensions: 384, metric: 'cosine' },
+        index: { indexType: 'hnsw', dimensions: 384, metric: 'cosine' },
         embedding: { model: 'Xenova/all-MiniLM-L6-v2', device: 'wasm' },
       });
 

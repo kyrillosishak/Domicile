@@ -3,38 +3,59 @@
  */
 
 import { IndexedDBStorage } from '../storage/IndexedDBStorage';
-import { IndexManager } from '../index/IndexManager';
+import { HnswIndex } from '../index/HnswIndex';
 import { TransformersEmbedding } from '../embedding/TransformersEmbedding';
 import { PerformanceOptimizer } from '../performance/PerformanceOptimizer';
-import type { VectorDBConfig, InsertData, ExportData, ExportOptions, ImportOptions } from './types';
+import type { VectorDBConfig, InjectedConfig, InsertData, ExportData, ExportOptions, ImportOptions } from './types';
 import type { SearchQuery, SearchResult } from '../index/types';
 import type { StorageManager, VectorRecord } from '../storage/types';
 import type { EmbeddingGenerator } from '../embedding/types';
+import type { Index, IndexHit } from './contracts';
 import { VectorDBError, DimensionMismatchError, InputValidator } from '../errors';
 
 /**
  * VectorDB - Main API for browser-based vector database operations
- * 
+ *
  * Provides a complete interface for:
  * - Vector storage with IndexedDB persistence
- * - Similarity search with Voy WASM engine
+ * - Similarity search with a WASM index engine
  * - Automatic embedding generation via Transformers.js
  * - Data import/export capabilities
  * - Performance optimizations (caching, batching, lazy loading)
+ *
+ * Two construction modes:
+ *  - `new VectorDB(VectorDBConfig)`     — declarative config (concrete adapters wired internally)
+ *  - `new VectorDB(InjectedConfig)`     — dependency injection (adapters supplied by caller / factory)
+ *
+ * The injection mode is the seam: it lets `createDomicile()` (and power users)
+ * swap any adapter — storage, index, embedding — without the facade importing
+ * the concrete class. The declarative mode remains for back-compat.
  */
 export class VectorDB {
   private initialized = false;
   private storage: StorageManager | null = null;
-  private indexManager: IndexManager | null = null;
+  private injectedIndex: Index | null = null;
   private embeddingGenerator: EmbeddingGenerator | null = null;
   private performanceOptimizer: PerformanceOptimizer;
+  private config: VectorDBConfig | null;
+  private injected: InjectedConfig | null;
+  private dimensions: number;
 
-  constructor(private config: VectorDBConfig) {
-    // Validate configuration
-    this.validateConfig(config);
-    
-    // Initialize performance optimizer
-    this.performanceOptimizer = new PerformanceOptimizer(config.performance);
+  constructor(config: VectorDBConfig | InjectedConfig) {
+    if (isInjectedConfig(config)) {
+      this.injected = config;
+      this.config = null;
+      this.dimensions = config.dimensions;
+      this.performanceOptimizer = new PerformanceOptimizer(config.performance);
+      this.embeddingGenerator = config.embedding ?? null;
+      this.injectedIndex = config.index;
+    } else {
+      this.validateConfig(config);
+      this.config = config;
+      this.injected = null;
+      this.dimensions = config.index.dimensions;
+      this.performanceOptimizer = new PerformanceOptimizer(config.performance);
+    }
   }
 
   /**
@@ -46,55 +67,11 @@ export class VectorDB {
     }
 
     try {
-      // Initialize storage
-      const storage = new IndexedDBStorage(this.config.storage);
-      await storage.initialize();
-      this.storage = storage;
-
-      // Initialize performance optimizer with storage
-      await this.performanceOptimizer.initialize(this.storage);
-
-      // Initialize index manager
-      this.indexManager = new IndexManager({
-        dimensions: this.config.index.dimensions,
-        metric: this.config.index.metric,
-        storage: this.storage,
-      });
-      
-      // Always initialize the index manager
-      await this.indexManager.initialize();
-      this.performanceOptimizer.markIndexLoaded();
-
-      // Initialize embedding generator with lazy loading support
-      if (this.config.performance?.lazyLoadModels) {
-        // Models will be loaded on first use
-        console.debug('Model lazy loading enabled');
-        this.embeddingGenerator = new TransformersEmbedding({
-          model: this.config.embedding.model,
-          device: this.config.embedding.device,
-          cache: this.config.embedding.cache ?? true,
-        });
+      if (this.injected) {
+        await this.initializeInjected();
       } else {
-        this.embeddingGenerator = new TransformersEmbedding({
-          model: this.config.embedding.model,
-          device: this.config.embedding.device,
-          cache: this.config.embedding.cache ?? true,
-        });
-        await this.embeddingGenerator.initialize();
-        this.performanceOptimizer.markModelsLoaded();
+        await this.initializeDeclarative();
       }
-
-      // Verify dimensions match (if models are loaded)
-      if (this.performanceOptimizer.areModelsLoaded()) {
-        const embeddingDimensions = this.embeddingGenerator!.getDimensions();
-        if (embeddingDimensions !== this.config.index.dimensions) {
-          throw new DimensionMismatchError(
-            this.config.index.dimensions,
-            embeddingDimensions
-          );
-        }
-      }
-
       this.initialized = true;
     } catch (error) {
       // Clean up on initialization failure
@@ -104,6 +81,94 @@ export class VectorDB {
         'INIT_ERROR',
         { error }
       );
+    }
+  }
+
+  /**
+   * Initialize from injected adapters (the seam path).
+   */
+  private async initializeInjected(): Promise<void> {
+    const injected = this.injected!;
+
+    // Storage is injected directly.
+    if ('initialize' in injected.storage) {
+      await (injected.storage as StorageManager).initialize?.();
+    }
+    this.storage = injected.storage;
+
+    await this.performanceOptimizer.initialize(this.storage);
+
+    // Index is injected (implements the Index contract).
+    await injected.index.initialize();
+    this.injectedIndex = injected.index;
+    this.performanceOptimizer.markIndexLoaded();
+
+    // Embedding optional + lazy.
+    if (injected.embedding) {
+      this.embeddingGenerator = injected.embedding;
+      if (this.embeddingGenerator && this.performanceOptimizer) {
+        // Treat as already-initialized by the factory unless explicitly lazy.
+      }
+    }
+
+    if (this.embeddingGenerator && this.performanceOptimizer.areModelsLoaded?.()) {
+      const embeddingDimensions = this.embeddingGenerator.getDimensions();
+      if (embeddingDimensions !== this.dimensions) {
+        throw new DimensionMismatchError(this.dimensions, embeddingDimensions);
+      }
+    }
+  }
+
+  /**
+   * Initialize from declarative config (back-compat path; wires concrete adapters internally).
+   */
+  private async initializeDeclarative(): Promise<void> {
+    const config = this.config!;
+
+    // Initialize storage
+    const storage = new IndexedDBStorage(config.storage);
+    await storage.initialize();
+    this.storage = storage;
+
+    // Initialize performance optimizer with storage
+    await this.performanceOptimizer.initialize(this.storage);
+
+    // Initialize the HNSW index (pure-TS; real scores, non-rebuilding delete).
+    this.injectedIndex = new HnswIndex({
+      dimensions: config.index.dimensions,
+      metric: config.index.metric,
+    });
+    await this.injectedIndex.initialize();
+    this.performanceOptimizer.markIndexLoaded();
+
+    // Initialize embedding generator with lazy loading support
+    if (config.performance?.lazyLoadModels) {
+      // Models will be loaded on first use
+      console.debug('Model lazy loading enabled');
+      this.embeddingGenerator = new TransformersEmbedding({
+        model: config.embedding.model,
+        device: config.embedding.device,
+        cache: config.embedding.cache ?? true,
+      });
+    } else {
+      this.embeddingGenerator = new TransformersEmbedding({
+        model: config.embedding.model,
+        device: config.embedding.device,
+        cache: config.embedding.cache ?? true,
+      });
+      await this.embeddingGenerator.initialize();
+      this.performanceOptimizer.markModelsLoaded();
+    }
+
+    // Verify dimensions match (if models are loaded)
+    if (this.performanceOptimizer.areModelsLoaded()) {
+      const embeddingDimensions = this.embeddingGenerator!.getDimensions();
+      if (embeddingDimensions !== config.index.dimensions) {
+        throw new DimensionMismatchError(
+          config.index.dimensions,
+          embeddingDimensions
+        );
+      }
     }
   }
 
@@ -148,7 +213,7 @@ export class VectorDB {
       this.performanceOptimizer.vectorCache.set(id, record, size);
 
       // Add to index
-      await this.indexManager!.add(record);
+      await this.idxAdd(record);
 
       return id;
     } catch (error) {
@@ -211,7 +276,7 @@ export class VectorDB {
       await this.storage!.putBatch(records);
 
       // Batch add to index
-      await this.indexManager!.addBatch(records);
+      await this.idxAddBatch(records);
 
       return ids;
     } catch (error) {
@@ -269,10 +334,10 @@ export class VectorDB {
       }
 
       // Validate query vector
-      InputValidator.validateVector(queryVector, this.config.index.dimensions);
+      InputValidator.validateVector(queryVector, this.dimensions);
 
       // Perform search
-      const results = await this.indexManager!.search(
+      const results = await this.idxSearch(
         queryVector,
         query.k,
         query.filter
@@ -324,7 +389,7 @@ export class VectorDB {
         this.performanceOptimizer.vectorCache.delete(id);
         
         // Remove from index
-        await this.indexManager!.remove(id);
+        await this.idxRemove(id);
       }
 
       return deleted;
@@ -382,8 +447,8 @@ export class VectorDB {
       await this.storage!.put(updated);
 
       // Update index (remove old, add new)
-      await this.indexManager!.remove(id);
-      await this.indexManager!.add(updated);
+      await this.idxRemove(id);
+      await this.idxAdd(updated);
 
       return true;
     } catch (error) {
@@ -411,7 +476,7 @@ export class VectorDB {
       }
       
       await this.storage!.clear();
-      await this.indexManager!.clear();
+      await this.idxClear();
       
       // Clear caches
       this.performanceOptimizer.clearCaches();
@@ -489,18 +554,19 @@ export class VectorDB {
       // Serialize index if requested
       let serializedIndex = '';
       if (includeIndex) {
-        serializedIndex = await this.indexManager!.serialize();
+        serializedIndex = await this.idxSerialize();
       }
 
       // Create export data
+      const cfg = this.config!;
       const exportData: ExportData = {
         version: '1.0.0',
         config: {
-          ...this.config,
+          ...cfg,
           // Don't export sensitive or runtime-specific config
           storage: {
-            dbName: this.config.storage.dbName,
-            version: this.config.storage.version,
+            dbName: cfg.storage.dbName,
+            version: cfg.storage.version,
           },
         },
         vectors: allRecords.map(r => ({
@@ -513,7 +579,7 @@ export class VectorDB {
         metadata: {
           exportedAt: Date.now(),
           vectorCount: count,
-          dimensions: this.config.index.dimensions,
+          dimensions: this.dimensions,
         },
       };
 
@@ -528,9 +594,51 @@ export class VectorDB {
   }
 
   /**
+   * Fallback async iteration for storage backends that don't implement
+   * `stream()`. Bridges the callback-based `ProgressiveLoader.streamProcess`
+   * into an async iterator so `exportStream` can yield incrementally on any
+   * storage: each record is handed to a pending `next()` via a promise.
+   */
+  private async *iterateAllViaProgressiveLoader(): AsyncGenerator<VectorRecord, void, unknown> {
+    let resolveNext: ((r: IteratorResult<VectorRecord>) => void) | null = null;
+    let failure: unknown = null;
+
+    const settle = (r: IteratorResult<VectorRecord>): void => {
+      if (resolveNext) {
+        const fn = resolveNext;
+        resolveNext = null;
+        fn(r);
+      }
+    };
+
+    this.performanceOptimizer.progressiveLoader
+      .streamProcess(this.storage!, async (record) => {
+        settle({ value: record, done: false });
+      })
+      .then(() => {
+        settle({ value: undefined, done: true });
+      })
+      .catch((err) => {
+        failure = err;
+        settle({ value: undefined, done: true });
+      });
+
+    while (true) {
+      const r = await new Promise<IteratorResult<VectorRecord>>((resolve) => {
+        resolveNext = resolve;
+      });
+      if (r.done) {
+        if (failure) throw failure;
+        return;
+      }
+      yield r.value;
+    }
+  }
+
+  /**
    * Export database as a streaming generator for very large datasets
    * This prevents loading all data into memory at once
-   * 
+   *
    * @param options - Export options
    * @returns Async generator yielding export chunks
    */
@@ -556,46 +664,52 @@ export class VectorDB {
         data: {
           version: '1.0.0',
           config: {
-            ...this.config,
+            ...this.config!,
             storage: {
-              dbName: this.config.storage.dbName,
-              version: this.config.storage.version,
+              dbName: this.config!.storage.dbName,
+              version: this.config!.storage.version,
             },
           },
           metadata: {
             exportedAt: Date.now(),
             vectorCount: count,
-            dimensions: this.config.index.dimensions,
+            dimensions: this.dimensions,
           },
         },
       };
 
-      // Stream vectors in chunks
+      // Stream vectors in chunks, yielding each batch as the cursor advances.
+      // The previous implementation pushed every record into one array and
+      // yielded only at the end — the comment "We can't yield from inside the
+      // callback" described the symptom. Consuming `storage.stream()` (a true
+      // cursor-backed async iterator) directly lets us yield incrementally, so
+      // peak memory stays bounded to one chunk regardless of corpus size.
+      const chunkSize = this.config!.performance?.chunkSize || 100;
+      const supportsStream = typeof this.storage!.stream === 'function';
+      const iter: AsyncIterable<VectorRecord> = supportsStream
+        ? this.storage!.stream!()
+        : this.iterateAllViaProgressiveLoader();
+
       let loaded = 0;
-      const chunkSize = this.config.performance?.chunkSize || 100;
       let chunk: any[] = [];
+      for await (const record of iter) {
+        chunk.push({
+          id: record.id,
+          vector: Array.from(record.vector),
+          metadata: record.metadata,
+          timestamp: record.timestamp,
+        });
 
-      await this.performanceOptimizer.progressiveLoader.streamProcess(
-        this.storage!,
-        async (record) => {
-          chunk.push({
-            id: record.id,
-            vector: Array.from(record.vector),
-            metadata: record.metadata,
-            timestamp: record.timestamp,
-          });
+        loaded++;
 
-          loaded++;
-
-          if (chunk.length >= chunkSize) {
-            // Note: We can't yield from inside the callback
-            // Chunks will be yielded after collection
-            if (onProgress) {
-              onProgress(loaded, count);
-            }
+        if (chunk.length >= chunkSize) {
+          yield { type: 'vectors', data: chunk };
+          chunk = [];
+          if (onProgress) {
+            onProgress(loaded, count);
           }
         }
-      );
+      }
 
       // Yield remaining vectors
       if (chunk.length > 0) {
@@ -611,7 +725,7 @@ export class VectorDB {
 
       // Yield index if requested
       if (includeIndex) {
-        const serializedIndex = await this.indexManager!.serialize();
+        const serializedIndex = await this.idxSerialize();
         yield {
           type: 'index',
           data: serializedIndex,
@@ -652,9 +766,9 @@ export class VectorDB {
       this.validateVersionCompatibility(data.version);
 
       // Validate dimensions match
-      if (data.metadata.dimensions !== this.config.index.dimensions) {
+      if (data.metadata.dimensions !== this.dimensions) {
         throw new DimensionMismatchError(
-          this.config.index.dimensions,
+          this.dimensions,
           data.metadata.dimensions
         );
       }
@@ -691,9 +805,9 @@ export class VectorDB {
         }
 
         // Validate vector dimensions
-        if (v.vector.length !== this.config.index.dimensions) {
+        if (v.vector.length !== this.dimensions) {
           throw new DimensionMismatchError(
-            this.config.index.dimensions,
+            this.dimensions,
             v.vector.length
           );
         }
@@ -720,7 +834,7 @@ export class VectorDB {
       // Deserialize and restore index if available
       if (data.index) {
         try {
-          await this.indexManager!.deserialize(data.index);
+          await this.idxDeserialize(data.index);
         } catch (error) {
           // If index deserialization fails, rebuild from vectors
           console.warn('Failed to deserialize index, rebuilding from vectors...', error);
@@ -840,10 +954,10 @@ export class VectorDB {
    */
   private async rebuildIndex(): Promise<void> {
     const allRecords = await this.storage!.getAll();
-    await this.indexManager!.clear();
-    
+    await this.idxClear();
+
     if (allRecords.length > 0) {
-      await this.indexManager!.addBatch(allRecords);
+      await this.idxAddBatch(allRecords);
     }
   }
 
@@ -876,7 +990,7 @@ export class VectorDB {
   private async prepareVector(data: InsertData): Promise<Float32Array> {
     if (data.vector) {
       // Validate provided vector
-      InputValidator.validateVector(data.vector, this.config.index.dimensions);
+      InputValidator.validateVector(data.vector, this.dimensions);
       return data.vector;
     } else if (data.text) {
       // Check embedding cache first
@@ -892,7 +1006,7 @@ export class VectorDB {
       const vector = await this.embeddingGenerator!.embed(data.text);
       
       // Validate generated vector
-      InputValidator.validateVector(vector, this.config.index.dimensions);
+      InputValidator.validateVector(vector, this.dimensions);
       
       // Cache the embedding
       this.performanceOptimizer.cacheEmbedding(data.text, vector);
@@ -917,9 +1031,9 @@ export class VectorDB {
       
       // Verify dimensions match
       const embeddingDimensions = this.embeddingGenerator!.getDimensions();
-      if (embeddingDimensions !== this.config.index.dimensions) {
+      if (embeddingDimensions !== this.dimensions) {
         throw new DimensionMismatchError(
-          this.config.index.dimensions,
+          this.dimensions,
           embeddingDimensions
         );
       }
@@ -931,6 +1045,116 @@ export class VectorDB {
    */
   private generateId(): string {
     return `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+  }
+
+  // ---------------------------------------------------------------------
+  // Index dispatch helpers.
+  //
+  // The facade talks to the index through these helpers. The index always
+  // implements the Index contract (HnswIndex, whether injected by the
+  // factory or wired by the declarative path). IndexHit[] carries id +
+  // score only, so metadata is hydrated from storage.
+  // ---------------------------------------------------------------------
+
+  private async idxAdd(record: VectorRecord): Promise<void> {
+    await this.injectedIndex!.add(record);
+  }
+
+  private async idxAddBatch(records: VectorRecord[]): Promise<void> {
+    await this.injectedIndex!.addBatch(records);
+  }
+
+  private async idxRemove(id: string): Promise<void> {
+    await this.injectedIndex!.remove(id);
+  }
+
+  private async idxClear(): Promise<void> {
+    await this.injectedIndex!.clear();
+  }
+
+  private async idxSerialize(): Promise<string> {
+    const serialized = await this.injectedIndex!.serialize();
+    return JSON.stringify(serialized);
+  }
+
+  private async idxDeserialize(data: string): Promise<void> {
+    try {
+      const parsed = JSON.parse(data);
+      await this.injectedIndex!.deserialize(parsed);
+    } catch (error) {
+      throw new VectorDBError('Failed to deserialize index', 'INDEX_DESERIALIZE_ERROR', { error });
+    }
+  }
+
+  /**
+   * Search the index and return results with metadata. IndexHit lacks
+   * metadata, so each hit is hydrated from storage.
+   */
+  private async idxSearch(query: Float32Array, k: number, filter?: import('../storage/types').Filter): Promise<SearchResult[]> {
+    const hits: IndexHit[] = await this.injectedIndex!.search(query, k, filter);
+    const results: SearchResult[] = [];
+    for (const hit of hits) {
+      const record = await this.storage!.get(hit.id);
+      if (!record) continue;
+      if (filter && !this.recordMatchesFilter(record, filter)) continue;
+      results.push({ id: hit.id, score: hit.score, metadata: record.metadata });
+      if (results.length >= k) break;
+    }
+    return results;
+  }
+
+  /** Metadata filter evaluation for the injected-index hydration path. */
+  private recordMatchesFilter(record: VectorRecord, filter: import('../storage/types').Filter): boolean {
+    // Delegate to the storage layer's filter semantics by reusing the
+    // IndexedDBStorage evaluator would be ideal, but to avoid a circular
+    // import we implement a minimal evaluator here matching the operators
+    // supported by MetadataFilter.
+    const f = filter as any;
+    if (f.operator === 'and' || f.operator === 'or') {
+      const sub = f.filters as import('../storage/types').Filter[];
+      if (!sub || sub.length === 0) return true;
+      return f.operator === 'and'
+        ? sub.every((s) => this.recordMatchesFilter(record, s))
+        : sub.some((s) => this.recordMatchesFilter(record, s));
+    }
+    const value = this.getNested(record.metadata, f.field as string);
+    if (value === undefined) return false;
+    switch (f.operator) {
+      case 'eq': return value === f.value;
+      case 'ne': return value !== f.value;
+      case 'gt': return value > f.value;
+      case 'gte': return value >= f.value;
+      case 'lt': return value < f.value;
+      case 'lte': return value <= f.value;
+      case 'in': return Array.isArray(f.value) && f.value.includes(value);
+      case 'contains':
+        if (Array.isArray(value)) return value.includes(f.value);
+        if (typeof value === 'string') return value.includes(f.value);
+        return false;
+      default: return false;
+    }
+  }
+
+  private getNested(obj: any, path: string): any {
+    const parts = path.split('.');
+    let cur = obj;
+    for (const p of parts) {
+      if (cur === null || cur === undefined) return undefined;
+      cur = cur[p];
+    }
+    return cur;
+  }
+
+  /**
+   * Ensure the database is initialized
+   */
+  private ensureInitialized(): void {
+    if (!this.initialized) {
+      throw new VectorDBError(
+        'VectorDB not initialized. Call initialize() first.',
+        'NOT_INITIALIZED'
+      );
+    }
   }
 
   /**
@@ -977,21 +1201,23 @@ export class VectorDB {
         this.storage = null;
       }
 
-      this.indexManager = null;
+      this.injectedIndex = null;
     } catch (error) {
       console.error('Error during cleanup:', error);
     }
   }
+}
 
-  /**
-   * Ensure the database is initialized
-   */
-  private ensureInitialized(): void {
-    if (!this.initialized) {
-      throw new VectorDBError(
-        'VectorDB not initialized. Call initialize() first.',
-        'NOT_INITIALIZED'
-      );
-    }
-  }
+/**
+ * Type guard distinguishing injected config (has an `index` object instance)
+ * from declarative config (has an `index: { dimensions, metric }` literal).
+ */
+function isInjectedConfig(config: VectorDBConfig | InjectedConfig): config is InjectedConfig {
+  return (
+    !!config &&
+    typeof (config as any).dimensions === 'number' &&
+    typeof (config as InjectedConfig).index === 'object' &&
+    typeof (config as InjectedConfig).index?.initialize === 'function' &&
+    typeof (config as InjectedConfig).storage?.put === 'function'
+  );
 }

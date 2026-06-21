@@ -1,0 +1,38 @@
+{
+  "name": "haven",
+  "version": "0.2.0",
+  "description": "DEPRECATED — renamed to 'domicile'. This stub re-exports domicile with a one-time deprecation notice. 'haven' will be retired after two domicile majors.",
+  "type": "module",
+  "main": "./index.js",
+  "module": "./index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./index.js"
+    }
+  },
+  "files": [
+    "index.js",
+    "index.d.ts"
+  ],
+  "scripts": {
+    "test": "node -e \"import('./index.js').then(m => { if (!m.createDomicile) process.exit(1); console.log('haven stub OK'); })\""
+  },
+  "keywords": [
+    "haven",
+    "domicile",
+    "deprecated",
+    "vector-database",
+    "rag",
+    "llm",
+    "browser",
+    "privacy"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "domicile": "^0.2.0"
+  },
+  "deprecated": "Renamed to 'domicile'. Run `npm install domicile` and update imports; this stub will be retired after two domicile majors."
+}

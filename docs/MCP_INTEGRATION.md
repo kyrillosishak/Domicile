@@ -16,7 +16,7 @@ import { VectorDB, MCPServer, RAGPipelineManager } from '@vectordb/browser-vecto
 // Initialize database
 const db = new VectorDB({
   storage: { dbName: 'mcp-demo' },
-  index: { indexType: 'kdtree', dimensions: 384, metric: 'cosine' },
+  index: { indexType: 'hnsw', dimensions: 384, metric: 'cosine' },
   embedding: { model: 'Xenova/all-MiniLM-L6-v2', device: 'wasm' },
 });
 
@@ -259,7 +259,7 @@ class StandaloneMCPServer {
     // Initialize database
     this.db = new VectorDB({
       storage: { dbName: config.dbName },
-      index: { indexType: 'kdtree', dimensions: 384, metric: 'cosine' },
+      index: { indexType: 'hnsw', dimensions: 384, metric: 'cosine' },
       embedding: { model: 'Xenova/all-MiniLM-L6-v2', device: 'wasm' },
     });
 

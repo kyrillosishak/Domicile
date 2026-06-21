@@ -87,6 +87,16 @@ export class WllamaProvider implements LLMProvider {
     }
   }
 
+  /**
+   * Non-throwing capability probe. wllama runs on WASM, so it is available
+   * wherever WebAssembly exists — the universal fallback. Model-load
+   * availability (network/reachability of the model URL) is not checked
+   * here; only runtime capability.
+   */
+  async isAvailable(): Promise<boolean> {
+    return typeof WebAssembly === 'object';
+  }
+
   async generate(prompt: string, options?: GenerateOptions): Promise<string> {
     if (!this.initialized || !this.wllama) {
       throw new Error('WllamaProvider not initialized. Call initialize() first.');
@@ -127,9 +137,26 @@ export class WllamaProvider implements LLMProvider {
       throw new Error('Model not loaded');
     }
 
+    // wllama v2 streams via an onToken callback that receives Uint8Array
+    // token bytes. We decode each token and yield it as it arrives, so the
+    // UI renders progressively instead of waiting for the whole completion.
+    // (The previous implementation called createCompletion without a callback,
+    // got back a full string, and yielded it once — a silent no-op "stream".)
+    const queue: Uint8Array[] = [];
+    let resolveNext: (() => void) | null = null;
+    let done = false;
+    let streamError: Error | null = null;
+
+    const flush = () => {
+      if (resolveNext) {
+        const r = resolveNext;
+        resolveNext = null;
+        r();
+      }
+    };
+
     try {
-      // Create a completion with streaming
-      const stream = await this.wllama.createCompletion(prompt, {
+      const completionPromise = this.wllama.createCompletion(prompt, {
         nPredict: options?.maxTokens || 512,
         sampling: {
           temp: options?.temperature ?? 0.7,
@@ -137,16 +164,34 @@ export class WllamaProvider implements LLMProvider {
           top_k: options?.topK ?? 40,
         },
         stopTokens: options?.stopSequences,
+        onToken: (token: Uint8Array) => {
+          queue.push(token);
+          flush();
+        },
       });
 
-      // If wllama supports streaming via async iteration
-      if (Symbol.asyncIterator in stream) {
-        for await (const chunk of stream as AsyncIterable<string>) {
-          yield chunk;
+      completionPromise
+        .then(() => { done = true; flush(); })
+        .catch((err: unknown) => { streamError = err instanceof Error ? err : new Error(String(err)); done = true; flush(); });
+
+      const decoder = new TextDecoder();
+
+      while (true) {
+        // Drain anything already queued.
+        while (queue.length > 0) {
+          const token = queue.shift()!;
+          yield decoder.decode(token, { stream: true });
         }
-      } else {
-        // Fallback: yield the complete result
-        yield stream as string;
+        if (done) break;
+        // Wait for the next token (or completion).
+        await new Promise<void>((resolve) => { resolveNext = resolve; });
+      }
+
+      // Flush the decoder's internal state.
+      yield decoder.decode();
+
+      if (streamError) {
+        throw streamError;
       }
     } catch (error) {
       throw new Error(

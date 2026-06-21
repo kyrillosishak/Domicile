@@ -88,7 +88,7 @@ export class BenchmarkRunner {
 
     const config: VectorDBConfig = {
       storage: { dbName: 'bench-model-load', version: 1 },
-      index: { dimensions: 384, metric: 'cosine', indexType: 'kdtree' },
+      index: { dimensions: 384, metric: 'cosine', indexType: 'hnsw' },
       embedding: {
         model: this.config.embeddingModel,
         device: 'wasm',
@@ -384,7 +384,7 @@ export class BenchmarkRunner {
   private async createTestDB(dbName: string): Promise<VectorDB> {
     const config: VectorDBConfig = {
       storage: { dbName, version: 1 },
-      index: { dimensions: 384, metric: 'cosine', indexType: 'kdtree' },
+      index: { dimensions: 384, metric: 'cosine', indexType: 'hnsw' },
       embedding: {
         model: this.config.embeddingModel,
         device: 'wasm',

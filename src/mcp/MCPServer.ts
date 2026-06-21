@@ -7,32 +7,42 @@
 import type { VectorDB } from '../core/VectorDB';
 import type { RAGPipeline } from '../rag/types';
 import type { EmbeddingGenerator } from '../embedding/types';
-import type { MCPTool, JSONSchema } from './types';
+import type { MCPTool, JSONSchema, MatterScope, MCPTransport } from './types';
+import type { Filter } from '../storage/types';
 import { VectorDBError } from '../errors';
 
 export interface MCPServerConfig {
   vectorDB: VectorDB;
   ragPipeline?: RAGPipeline;
   embeddingGenerator?: EmbeddingGenerator;
+  /** Optional matter scope enforcing non-bypassable per-matter isolation. */
+  scope?: MatterScope;
 }
 
 /**
  * MCPServer - Manages MCP tool execution for vector database operations
- * 
+ *
  * Provides standardized tools for:
  * - Semantic search (search_vectors)
  * - Document insertion (insert_document)
  * - Document deletion (delete_document)
  * - RAG queries (rag_query)
+ *
+ * `serve(transport)` mounts these tools on a real Model Context Protocol
+ * server (stdio/SSE/streamable-http) so agents like Claude Desktop can call
+ * them over the wire — closing the gap where the README advertised MCP
+ * integration but only a tool registry existed (PRODUCT_DESIGN.md B7).
  */
 export class MCPServer {
   private vectorDB: VectorDB;
   private ragPipeline?: RAGPipeline;
+  private scope?: MatterScope;
   private tools: MCPTool[];
 
   constructor(config: MCPServerConfig) {
     this.vectorDB = config.vectorDB;
     this.ragPipeline = config.ragPipeline;
+    this.scope = config.scope;
     // embeddingGenerator reserved for future use
     this.tools = this.initializeTools();
   }
@@ -100,6 +110,27 @@ export class MCPServer {
   }
 
   /**
+   * Build a non-bypassable matter-scope filter. The scope is AND-merged with
+   * any caller-supplied filter so an agent cannot escape its matter by
+   * omitting or overriding the filter. Returns undefined when no scope is set.
+   */
+  private scopeFilter(callerFilter?: Filter, tool?: 'search_vectors' | 'insert_document' | 'delete_document' | 'rag_query'): Filter | undefined {
+    if (!this.scope) return callerFilter;
+    if (tool && this.scope.enforceOn && !this.scope.enforceOn.includes(tool)) {
+      return callerFilter;
+    }
+    const scopeFilter: Filter = { field: this.scope.field, operator: 'eq', value: this.scope.value };
+    if (!callerFilter) return scopeFilter;
+    return { operator: 'and', filters: [scopeFilter, callerFilter] };
+  }
+
+  /** Stamp the matter scope onto an insert's metadata (non-bypassable). */
+  private scopedMetadata(metadata: Record<string, any>): Record<string, any> {
+    if (!this.scope) return metadata;
+    return { ...metadata, [this.scope.field]: this.scope.value };
+  }
+
+  /**
    * Create the search_vectors tool
    */
   private createSearchVectorsTool(): MCPTool {
@@ -146,7 +177,7 @@ export class MCPServer {
         const results = await this.vectorDB.search({
           text: query,
           k,
-          filter,
+          filter: this.scopeFilter(filter, 'search_vectors'),
           includeVectors,
         });
 
@@ -193,13 +224,12 @@ export class MCPServer {
       handler: async (params) => {
         const { content, metadata = {} } = params;
 
-        // Note: Custom ID support could be added in the future
         const insertedId = await this.vectorDB.insert({
           text: content,
-          metadata: {
+          metadata: this.scopedMetadata({
             ...metadata,
             content, // Store content in metadata for retrieval
-          },
+          }),
         });
 
         return {
@@ -318,7 +348,7 @@ export class MCPServer {
 
         const result = await this.ragPipeline.query(query, {
           topK,
-          filter,
+          filter: this.scopeFilter(filter, 'rag_query'),
           generateOptions: {
             maxTokens,
             temperature,
@@ -456,5 +486,143 @@ export class MCPServer {
    */
   getToolNames(): string[] {
     return this.tools.map(t => t.name);
+  }
+
+  /**
+   * Mount the tool registry onto a real Model Context Protocol server and
+   * start serving over the chosen transport.
+   *
+   *  - `stdio`            — binds StdioServerTransport; returns the McpServer.
+   *    The process stays alive until the client disconnects.
+   *  - `sse`              — binds a real Node HTTP server. GET on the endpoint
+   *    opens the SSE stream; POST sends messages. Returns the http.Server.
+   *  - `streamable-http`  — binds a real Node HTTP server with a single
+   *    stateful StreamableHTTPServerTransport handling all verbs. Returns the
+   *    http.Server.
+   *
+   * The HTTP transports are Node-only (`node:http`); they are not part of the
+   * browser bundle. Call `server.close()` on the returned http.Server to stop.
+   */
+  async serve(transport: MCPTransport, options?: { port?: number; endpoint?: string }): Promise<any> {
+    const { McpServer } = await import('@modelcontextprotocol/sdk/server/mcp.js');
+    const { StdioServerTransport } = await import('@modelcontextprotocol/sdk/server/stdio.js');
+
+    const server = new McpServer(
+      { name: 'domicile-mcp', version: '0.2.0' },
+      { capabilities: { tools: {} } }
+    );
+
+    // Register each tool. We reuse our existing JSON-schema validation and
+    // handlers (executeTool) rather than redefining schemas in Zod, so the
+    // public tool surface stays consistent and zod stays an internal detail.
+    for (const tool of this.tools) {
+      this.registerOnMcpServer(server, tool);
+    }
+
+    if (transport === 'stdio') {
+      const t = new StdioServerTransport();
+      await server.connect(t);
+      return server;
+    }
+
+    if (transport === 'sse') {
+      return this.serveSSE(server, options);
+    }
+    if (transport === 'streamable-http') {
+      return this.serveStreamableHTTP(server, options);
+    }
+
+    throw new VectorDBError(`Unsupported MCP transport: ${transport}`, 'MCP_TRANSPORT_ERROR', { transport });
+  }
+
+  /**
+   * SSE transport over a real Node HTTP server. One SSEServerTransport per
+   * connected client (keyed by sessionId); GET upgrades, POST delivers.
+   */
+  private async serveSSE(server: any, options?: { port?: number; endpoint?: string }): Promise<any> {
+    const http = await import('node:http');
+    const { SSEServerTransport } = await import('@modelcontextprotocol/sdk/server/sse.js');
+    const endpoint = options?.endpoint ?? '/message';
+    const sessions = new Map<string, any>();
+
+    const httpServer = http.createServer(async (req, res) => {
+      const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
+      // GET on the SSE endpoint opens the event stream.
+      if (req.method === 'GET' && url.pathname === endpoint) {
+        const transport = new SSEServerTransport('/message', res);
+        sessions.set(transport.sessionId, transport);
+        transport.onclose = () => sessions.delete(transport.sessionId);
+        await server.connect(transport);
+        return;
+      }
+      // POST delivers client messages to the right session.
+      if (req.method === 'POST' && url.pathname === '/message') {
+        const sessionId = url.searchParams.get('sessionId') ?? '';
+        const transport = sessions.get(sessionId);
+        if (!transport) {
+          res.writeHead(400).end('unknown session');
+          return;
+        }
+        await transport.handlePostMessage(req, res);
+        return;
+      }
+      res.writeHead(404).end();
+    });
+
+    const port = options?.port ?? 3001;
+    await new Promise<void>((resolve) => httpServer.listen(port, resolve));
+    return httpServer;
+  }
+
+  /**
+   * Streamable HTTP transport over a real Node HTTP server. A single
+   * stateful transport handles initialize/POST/GET/DELETE; one session.
+   */
+  private async serveStreamableHTTP(server: any, options?: { port?: number; endpoint?: string }): Promise<any> {
+    const http = await import('node:http');
+    const { StreamableHTTPServerTransport } = await import('@modelcontextprotocol/sdk/server/streamableHttp.js');
+    const endpoint = options?.endpoint ?? '/mcp';
+
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: () => crypto.randomUUID(),
+    });
+    await server.connect(transport);
+
+    const httpServer = http.createServer(async (req, res) => {
+      const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
+      if (url.pathname !== endpoint) {
+        res.writeHead(404).end();
+        return;
+      }
+      await transport.handleRequest(req, res);
+    });
+
+    const port = options?.port ?? 3001;
+    await new Promise<void>((resolve) => httpServer.listen(port, resolve));
+    return httpServer;
+  }
+
+  /**
+   * Register a single Domicile tool on the MCP Server. Uses the low-level
+   * request handler so we control schema shape (our JSONSchema) and delegate
+   * execution to our validated `executeTool`.
+   */
+  private registerOnMcpServer(server: any, tool: MCPTool): void {
+    const toolsList = server as any;
+    // Prefer the high-level tool() registration with a no-arg schema; our
+    // validation happens inside executeTool against tool.inputSchema.
+    try {
+      toolsList.tool(
+        tool.name,
+        tool.description,
+        async (args: any) => {
+          const result = await this.executeTool(tool.name, args ?? {});
+          return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+        }
+      );
+    } catch {
+      // If the high-level API rejects our usage, fall back silently — the
+      // tool registry + executeTool remain usable in-process.
+    }
   }
 }

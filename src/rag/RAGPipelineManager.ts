@@ -1,12 +1,26 @@
 /**
  * RAGPipelineManager - Orchestrates retrieval and generation for RAG workflows
+ *
+ * Pipeline stages (PRODUCT_DESIGN.md B6):
+ *  1. Retrieve   — dense ANN search, optionally fused with BM25 (hybrid)
+ *  2. Rerank     — optional cross-encoder re-scoring of top-K
+ *  3. Format     — context from retrieved passages via a configurable template
+ *  4. Truncate   — to the model's context budget using a REAL tokenizer
+ *  5. Prompt     — configurable system instruction + context + question
+ *  6. Generate   — LLM, streaming or not
+ *  7. Cite       — bind the answer to source passages as Citation[]
  */
 
 import type { VectorDB } from '../core/VectorDB';
 import type { LLMProvider } from '../llm/types';
 import type { EmbeddingGenerator } from '../embedding/types';
 import type { SearchResult } from '../index/types';
-import type { RAGPipeline, RAGOptions, RAGResult, RAGStreamChunk } from './types';
+import type { RAGPipeline, RAGOptions, RAGResult, RAGStreamChunk, PromptTemplate, Citation } from './types';
+import type { Tokenizer } from './Tokenizer';
+import type { Reranker } from './Reranker';
+import { CharTokenizer } from './Tokenizer';
+import { NoopReranker } from './Reranker';
+import { BM25Index, reciprocalRankFusion } from './HybridSearch';
 import { VectorDBError } from '../errors';
 
 export interface RAGPipelineConfig {
@@ -14,32 +28,92 @@ export interface RAGPipelineConfig {
   llmProvider: LLMProvider;
   embeddingGenerator: EmbeddingGenerator;
   defaultContextTemplate?: string;
+  defaultPromptTemplate?: PromptTemplate;
   defaultMaxContextTokens?: number;
+  /** Tokenizer for accurate context truncation. Default: CharTokenizer (length/4). */
+  tokenizer?: Tokenizer;
+  /** Reranker stage. Default: NoopReranker (disabled). */
+  reranker?: Reranker;
+  /** Enable hybrid BM25+dense fusion by default. Default: false. */
+  hybridByDefault?: boolean;
+  /** Enable reranking by default. Default: false. */
+  rerankByDefault?: boolean;
+  /** How many candidates to retrieve before reranking. Default: topK * 4. */
+  retrieveMultiplier?: number;
 }
+
+const DEFAULT_SYSTEM_PROMPT =
+  'You are a helpful assistant. Use the following context to answer the user\'s question. ' +
+  'If the context doesn\'t contain relevant information, say so. ' +
+  'Cite sources by their [n] number when grounding a claim.';
+
+const DEFAULT_PROMPT_TEMPLATE = `{system}
+
+Context:
+{context}
+
+Question: {question}
+
+Answer:`;
 
 /**
  * RAGPipelineManager - Implements the RAG (Retrieval-Augmented Generation) pipeline
- * 
- * Orchestrates the complete RAG workflow:
- * 1. Embed the user query
- * 2. Search for relevant documents
- * 3. Format context from retrieved documents
- * 4. Build prompt with context injection
- * 5. Generate response using LLM
  */
 export class RAGPipelineManager implements RAGPipeline {
   private vectorDB: VectorDB;
   private llmProvider: LLMProvider;
   private embeddingGenerator: EmbeddingGenerator;
   private defaultContextTemplate: string;
+  private defaultPromptTemplate: PromptTemplate;
   private defaultMaxContextTokens: number;
+  private tokenizer: Tokenizer;
+  private reranker: Reranker;
+  private bm25: BM25Index;
+  private hybridByDefault: boolean;
+  private rerankByDefault: boolean;
+  private retrieveMultiplier: number;
 
   constructor(config: RAGPipelineConfig) {
     this.vectorDB = config.vectorDB;
     this.llmProvider = config.llmProvider;
     this.embeddingGenerator = config.embeddingGenerator;
     this.defaultContextTemplate = config.defaultContextTemplate || this.getDefaultTemplate();
+    this.defaultPromptTemplate = config.defaultPromptTemplate ?? {};
     this.defaultMaxContextTokens = config.defaultMaxContextTokens || 2000;
+    this.tokenizer = config.tokenizer ?? new CharTokenizer();
+    this.reranker = config.reranker ?? new NoopReranker();
+    this.bm25 = new BM25Index();
+    this.hybridByDefault = config.hybridByDefault ?? false;
+    this.rerankByDefault = config.rerankByDefault ?? false;
+    this.retrieveMultiplier = config.retrieveMultiplier ?? 4;
+  }
+
+  /**
+   * Index a document's text into the BM25 sparse index for hybrid search.
+   * Call this when documents are added to the vector DB so the sparse index
+   * stays in sync. (The dense index is maintained by VectorDB itself.)
+   */
+  indexDocument(id: string, text: string): void {
+    this.bm25.add(id, text);
+  }
+
+  /** Remove a document from the BM25 sparse index. */
+  removeDocument(id: string): void {
+    this.bm25.remove(id);
+  }
+
+  /**
+   * Swap the LLM provider at runtime. Used by UIs that boot with a
+   * retrieval-only (noop) provider and upgrade to a real local LLM once its
+   * model finishes loading in the background.
+   */
+  setLLMProvider(provider: LLMProvider): void {
+    this.llmProvider = provider;
+  }
+
+  /** The active LLM provider (for UI status display). */
+  getLLMProvider(): LLMProvider {
+    return this.llmProvider;
   }
 
   /**
@@ -51,40 +125,52 @@ export class RAGPipelineManager implements RAGPipeline {
    */
   async query(query: string, options?: RAGOptions): Promise<RAGResult> {
     try {
-      // Step 1: Retrieve relevant documents
+      const useHybrid = options?.hybrid ?? this.hybridByDefault;
+      const useRerank = options?.rerank ?? this.rerankByDefault;
+
+      // Step 1: Retrieve (dense, optionally fused with BM25)
       const retrievalStart = Date.now();
-      const sources = await this.retrieve(query, options);
+      let sources = await this.retrieve(query, options, useHybrid);
+
+      // Step 2: Rerank (optional cross-encoder re-scoring)
+      let reranked = false;
+      if (useRerank && sources.length > 1) {
+        sources = await this.reranker.rerank(query, sources);
+        reranked = this.reranker.isReady();
+      }
       const retrievalTime = Date.now() - retrievalStart;
 
-      // Step 2: Format context from retrieved documents
+      // Step 3: Format context from retrieved passages
       const context = this.formatContext(sources, options);
 
-      // Step 3: Truncate context if needed
-      const truncatedContext = this.truncateContext(
-        context,
-        options?.maxContextTokens || this.defaultMaxContextTokens
-      );
+      // Step 4: Truncate using the real tokenizer
+      const maxTokens = options?.maxContextTokens || this.defaultMaxContextTokens;
+      const truncatedContext = await this.tokenizer.truncate(context, maxTokens);
 
-      // Step 4: Build prompt with context injection
-      const prompt = this.buildPrompt(query, truncatedContext);
+      // Step 5: Build prompt with configurable template
+      const prompt = this.buildPrompt(query, truncatedContext, options?.promptTemplate);
 
-      // Step 5: Generate response using LLM
+      // Step 6: Generate
       const generationStart = Date.now();
       const answer = await this.llmProvider.generate(prompt, options?.generateOptions);
       const generationTime = Date.now() - generationStart;
 
-      // Step 6: Estimate token count
-      const tokensGenerated = this.estimateTokenCount(answer);
-      const contextLength = this.estimateTokenCount(truncatedContext);
+      // Step 7: Token accounting + citations
+      const tokensGenerated = await this.tokenizer.count(answer);
+      const contextLength = await this.tokenizer.count(truncatedContext);
+      const citations = this.buildCitations(sources);
 
       return {
         answer,
         sources: options?.includeSourcesInResponse !== false ? sources : [],
+        citations,
         metadata: {
           retrievalTime,
           generationTime,
           tokensGenerated,
           contextLength,
+          reranked,
+          hybrid: useHybrid,
         },
       };
     } catch (error) {
@@ -105,12 +191,17 @@ export class RAGPipelineManager implements RAGPipeline {
    */
   async *queryStream(query: string, options?: RAGOptions): AsyncGenerator<RAGStreamChunk> {
     try {
-      // Step 1: Retrieve relevant documents
+      const useHybrid = options?.hybrid ?? this.hybridByDefault;
+      const useRerank = options?.rerank ?? this.rerankByDefault;
+
+      // Step 1: Retrieve (+ optional hybrid + rerank)
       const retrievalStart = Date.now();
-      const sources = await this.retrieve(query, options);
+      let sources = await this.retrieve(query, options, useHybrid);
+      if (useRerank && sources.length > 1) {
+        sources = await this.reranker.rerank(query, sources);
+      }
       const retrievalTime = Date.now() - retrievalStart;
 
-      // Yield retrieval results
       yield {
         type: 'retrieval',
         content: '',
@@ -118,24 +209,16 @@ export class RAGPipelineManager implements RAGPipeline {
         metadata: { retrievalTime },
       };
 
-      // Step 2: Format context from retrieved documents
+      // Step 2-4: format, truncate (real tokenizer), prompt
       const context = this.formatContext(sources, options);
-
-      // Step 3: Truncate context if needed
-      const truncatedContext = this.truncateContext(
-        context,
-        options?.maxContextTokens || this.defaultMaxContextTokens
-      );
-
-      // Step 4: Build prompt with context injection
-      const prompt = this.buildPrompt(query, truncatedContext);
+      const maxTokens = options?.maxContextTokens || this.defaultMaxContextTokens;
+      const truncatedContext = await this.tokenizer.truncate(context, maxTokens);
+      const prompt = this.buildPrompt(query, truncatedContext, options?.promptTemplate);
 
       // Step 5: Stream generated response
       const generationStart = Date.now();
-      let fullAnswer = '';
 
       for await (const chunk of this.llmProvider.generateStream(prompt, options?.generateOptions)) {
-        fullAnswer += chunk;
         yield {
           type: 'generation',
           content: chunk,
@@ -144,7 +227,6 @@ export class RAGPipelineManager implements RAGPipeline {
 
       const generationTime = Date.now() - generationStart;
 
-      // Yield completion metadata
       yield {
         type: 'complete',
         content: '',
@@ -169,19 +251,46 @@ export class RAGPipelineManager implements RAGPipeline {
    * @param options - RAG options with topK and filter
    * @returns Array of search results
    */
-  private async retrieve(query: string, options?: RAGOptions): Promise<SearchResult[]> {
+  private async retrieve(query: string, options?: RAGOptions, useHybrid = false): Promise<SearchResult[]> {
     // Generate query embedding
     const queryVector = await this.embeddingGenerator.embed(query);
 
-    // Search for relevant documents
-    const results = await this.vectorDB.search({
+    const topK = options?.topK || 5;
+    // Over-retrieve when reranking or fusing so the later stages have a
+    // candidate pool to reorder, then trim back to topK.
+    const retrieveK = (options?.rerank ?? this.rerankByDefault) || useHybrid
+      ? topK * this.retrieveMultiplier
+      : topK;
+
+    // Dense retrieval
+    const dense = await this.vectorDB.search({
       vector: queryVector,
-      k: options?.topK || 5,
+      k: retrieveK,
       filter: options?.filter,
       includeVectors: false,
     });
 
-    return results;
+    if (!useHybrid || this.bm25.size() === 0) {
+      return dense.slice(0, topK);
+    }
+
+    // Sparse (BM25) retrieval over the same corpus
+    const sparse = this.bm25.search(query).slice(0, retrieveK);
+
+    // Fuse via Reciprocal Rank Fusion. Dense hits carry their metadata;
+    // sparse-only hits are hydrated from the dense results when present.
+    const denseById = new Map(dense.map((r) => [r.id, r]));
+    const fused = reciprocalRankFusion(
+      dense.map((r) => ({ id: r.id })),
+      sparse
+    ).slice(0, topK);
+
+    return fused.map((f) => {
+      const hit = denseById.get(f.id);
+      if (hit) return { ...hit, score: f.score };
+      // Sparse-only hit: minimal record (metadata hydrable by caller).
+      return { id: f.id, score: f.score, metadata: {} } as SearchResult;
+    });
   }
 
   /**
@@ -196,14 +305,19 @@ export class RAGPipelineManager implements RAGPipeline {
       return 'No relevant information found.';
     }
 
-    const template = options?.contextTemplate || this.defaultContextTemplate;
+    const itemTemplate = options?.promptTemplate?.contextItemTemplate
+      ?? options?.contextTemplate
+      ?? this.defaultPromptTemplate?.contextItemTemplate
+      ?? this.defaultContextTemplate;
+    const join = options?.promptTemplate?.contextJoin
+      ?? this.defaultPromptTemplate?.contextJoin
+      ?? '\n\n';
 
-    // Format each result using the template
     const formattedResults = results.map((result, index) => {
-      return this.applyTemplate(template, result, index);
+      return this.applyTemplate(itemTemplate, result, index);
     });
 
-    return formattedResults.join('\n\n');
+    return formattedResults.join(join);
   }
 
   /**
@@ -234,65 +348,44 @@ export class RAGPipelineManager implements RAGPipeline {
   }
 
   /**
-   * Build a prompt with context injection
-   * 
-   * @param query - User query
-   * @param context - Formatted context from retrieved documents
-   * @returns Complete prompt for LLM
+   * Build a prompt with context injection, using a configurable template.
+   *
+   * Replaces the previously hardcoded English instruction. Callers pass a
+   * PromptTemplate (system, contextItemTemplate, template) for
+   * jurisdiction-aware or domain-specific instructions.
    */
-  private buildPrompt(query: string, context: string): string {
-    return `You are a helpful assistant. Use the following context to answer the user's question. If the context doesn't contain relevant information, say so.
+  private buildPrompt(query: string, context: string, templateOverride?: PromptTemplate): string {
+    const tpl = templateOverride ?? this.defaultPromptTemplate;
+    const system = tpl.system ?? DEFAULT_SYSTEM_PROMPT;
+    const template = tpl.template ?? DEFAULT_PROMPT_TEMPLATE;
 
-Context:
-${context}
-
-Question: ${query}
-
-Answer:`;
+    return template
+      .replace('{system}', system)
+      .replace('{context}', context)
+      .replace('{question}', query);
   }
 
   /**
-   * Truncate context to fit within token limit
-   * 
-   * @param context - Context string to truncate
-   * @param maxTokens - Maximum number of tokens
-   * @returns Truncated context
+   * Build citation objects binding the answer back to its source passages.
+   * Each citation carries the source id, score, a snippet, metadata, and a
+   * 1-based rank — the audit trail that makes privilege-grounded answers
+   * reviewable (PRODUCT_DESIGN.md B6, stage 7).
    */
-  private truncateContext(context: string, maxTokens: number): string {
-    // Rough estimation: 1 token ≈ 4 characters
-    const maxChars = maxTokens * 4;
-
-    if (context.length <= maxChars) {
-      return context;
-    }
-
-    // Truncate and add ellipsis
-    const truncated = context.substring(0, maxChars);
-    
-    // Try to truncate at a sentence boundary
-    const lastPeriod = truncated.lastIndexOf('.');
-    const lastNewline = truncated.lastIndexOf('\n');
-    const cutoff = Math.max(lastPeriod, lastNewline);
-
-    if (cutoff > maxChars * 0.8) {
-      // If we found a good boundary, use it
-      return truncated.substring(0, cutoff + 1) + '\n\n[Context truncated due to length...]';
-    }
-
-    // Otherwise, just truncate at character limit
-    return truncated + '...\n\n[Context truncated due to length...]';
+  private buildCitations(sources: SearchResult[]): Citation[] {
+    return sources.map((s, i) => ({
+      id: s.id,
+      score: s.score,
+      snippet: this.snippetOf(s),
+      metadata: s.metadata ?? {},
+      rank: i + 1,
+    }));
   }
 
-  /**
-   * Estimate token count for a text string
-   * 
-   * @param text - Text to estimate
-   * @returns Estimated token count
-   */
-  private estimateTokenCount(text: string): number {
-    // Rough estimation: 1 token ≈ 4 characters
-    // This is a simple heuristic; actual tokenization varies by model
-    return Math.ceil(text.length / 4);
+  private snippetOf(s: SearchResult): string {
+    const content = s.metadata?.content;
+    if (typeof content === 'string') return content.slice(0, 280);
+    if (typeof s.metadata?.title === 'string') return s.metadata.title;
+    return '';
   }
 
   /**

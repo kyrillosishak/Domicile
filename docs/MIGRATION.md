@@ -52,7 +52,7 @@ const db = new VectorDB({
     dbName: 'my-app',
   },
   index: {
-    indexType: 'kdtree',
+    indexType: 'hnsw',
     dimensions: 384,
     metric: 'cosine',
   },
