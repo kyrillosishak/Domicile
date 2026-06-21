@@ -1,0 +1,23 @@
+[package]
+name = "domicile-desktop"
+version = "0.2.0"
+description = "Domicile — private-AI custody desktop reference app"
+edition = "2021"
+license = "MIT"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# The shell is intentionally minimal: it only hosts the webview. All engine
+# logic (vector DB, RAG, LLM, custody) runs as JS/WASM inside the webview.
+# No outbound network is initiated by the shell; model-weight fetches happen
+# in the webview and cache once (the residency boundary, docs/PRODUCT_DESIGN.md A6.1).
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

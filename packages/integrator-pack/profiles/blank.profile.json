@@ -1,0 +1,17 @@
+{
+  "name": "blank",
+  "description": "Blank custody template — configure your own model, scope, and prompt.",
+  "embedding": { "model": "Xenova/all-MiniLM-L6-v2", "dimensions": 384 },
+  "metric": "cosine",
+  "indexType": "hnsw",
+  "matterScope": null,
+  "rag": {
+    "hybridByDefault": false,
+    "rerankByDefault": false,
+    "topK": 5,
+    "maxContextTokens": 2000,
+    "systemPrompt": "You are a helpful assistant. Answer from the provided context and cite by [n].",
+    "contextItemTemplate": "Document {index}:\n{content}"
+  },
+  "residency": { "allowModelWeights": true, "egressAllowlist": ["huggingface.co"] }
+}

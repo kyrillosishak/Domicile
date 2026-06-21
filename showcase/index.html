@@ -1,0 +1,667 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Domicile — On-prem privacy, in the browser</title>
+<meta name="description" content="Domicile is a private AI stack — vector database, RAG, and local LLM — that runs entirely in the browser. On-prem-grade data custody and privilege protection, without the on-prem infrastructure." />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect width='48' height='48' fill='%23F4F1EA'/%3E%3Ccircle cx='24' cy='25' r='17' fill='none' stroke='%237C3027' stroke-width='1.6'/%3E%3Ccircle cx='24' cy='25' r='14.5' fill='none' stroke='%237C3027' stroke-width='0.6' opacity='0.45'/%3E%3Cpath d='M16 27 L24 20 L32 27' fill='none' stroke='%237C3027' stroke-width='1.5' stroke-linejoin='round' stroke-linecap='round'/%3E%3Cpath d='M18 27 V33 H30 V27' fill='none' stroke='%237C3027' stroke-width='1.5' stroke-linejoin='round'/%3E%3Cpath d='M22 33 V29.5 Q24 28 26 29.5 V33' fill='none' stroke='%237C3027' stroke-width='1.1' stroke-linejoin='round'/%3E%3Cpath d='M24 4 L26.2 6.5 L24 9 L21.8 6.5 Z' fill='%237C3027'/%3E%3C/svg%3E" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500&family=Inter:wght@400;450;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script type="importmap">
+{
+  "imports": {
+    "@huggingface/transformers": "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.1.2",
+    "@mlc-ai/web-llm": "https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.72/+esm",
+    "@wllama/wllama": "https://cdn.jsdelivr.net/npm/@wllama/wllama@2.3.6/+esm",
+    "@modelcontextprotocol/sdk": "https://cdn.jsdelivr.net/npm/@modelcontextprotocol/sdk@1.29.0/+esm",
+    "react": "https://cdn.jsdelivr.net/npm/react@18.3.1/+esm",
+    "react-dom": "https://cdn.jsdelivr.net/npm/react-dom@18.3.1/+esm"
+  }
+}
+</script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --sans:'Inter',system-ui,sans-serif;
+  --serif:'Fraunces',Georgia,serif;
+  --mono:'JetBrains Mono',monospace;
+  /* warm parchment — legal/editorial */
+  --bg:#F4F1EA;
+  --bg-2:#EDE9DF;
+  --paper:#FBFAF6;
+  --ink:#1A1916;
+  --ink-2:#45423B;
+  --ink-3:#76736B;
+  --ink-4:#A8A499;
+  --line:#DBD6CA;
+  --line-2:#C7C1B3;
+  /* oxblood — legal authority */
+  --oxblood:#7C3027;
+  --oxblood-deep:#63251E;
+  --clay:#B0684E;
+  --clay-soft:#D8A88E;
+  --sage:#6B7B5E;
+  --gold:#B0884F;
+  --ink-inv:#F4F1EA;
+  --r:16px;--r-lg:24px;--r-xl:32px;
+  --ease:cubic-bezier(.16,1,.3,1);
+}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-weight:400;line-height:1.6;letter-spacing:-.005em;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;overflow-x:hidden}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;border:none;background:none;color:var(--ink);cursor:pointer}
+::selection{background:var(--oxblood);color:var(--paper)}
+.grain{position:fixed;inset:0;z-index:999;pointer-events:none;opacity:.045;mix-blend-mode:multiply;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E")}
+.wrap{max-width:1200px;margin:0 auto;padding:0 32px}
+@media(max-width:640px){.wrap{padding:0 22px}}
+section{position:relative;padding:128px 0}
+@media(max-width:768px){section{padding:88px 0}}
+
+.eyebrow{display:inline-flex;align-items:center;gap:11px;font-size:13px;font-weight:500;letter-spacing:.04em;color:var(--oxblood)}
+.eyebrow::before{content:"";width:18px;height:1.5px;background:var(--oxblood)}
+.h1{font-family:var(--serif);font-size:clamp(44px,7.2vw,100px);line-height:.98;letter-spacing:-.025em;font-weight:400}
+.h2{font-family:var(--serif);font-size:clamp(32px,5vw,64px);line-height:1.04;letter-spacing:-.02em;font-weight:400}
+.h3{font-family:var(--serif);font-size:clamp(24px,2.6vw,34px);line-height:1.15;letter-spacing:-.015em;font-weight:400}
+.it{font-style:italic}
+.lead{font-size:clamp(17px,1.5vw,21px);line-height:1.55;color:var(--ink-2)}
+.muted{color:var(--ink-3)}
+.ox{color:var(--oxblood)}
+
+/* ===== LOGO ===== */
+.logo{display:inline-flex;align-items:center;gap:11px}
+.logo .mark{width:30px;height:30px;flex:none}
+.logo .mark svg{width:100%;height:100%;display:block}
+.logo .word{font-family:var(--serif);font-size:21px;font-weight:500;letter-spacing:-.02em;line-height:1}
+.logo .word .sub{font-family:var(--serif);font-style:italic;font-weight:400;color:var(--ink-3);font-size:16px;margin-left:1px}
+.logo-lg{width:72px;height:72px}
+.logo-lg svg{width:100%;height:100%}
+
+/* nav */
+.nav{position:fixed;top:0;left:0;right:0;z-index:100;transition:all .5s var(--ease)}
+.nav-inner{display:flex;align-items:center;justify-content:space-between;height:76px;transition:height .5s var(--ease)}
+.nav.scrolled{backdrop-filter:blur(16px) saturate(150%);background:rgba(244,241,234,.85);border-bottom:1px solid var(--line)}
+.nav.scrolled .nav-inner{height:64px}
+.nav-links{display:flex;gap:32px;align-items:center}
+.nav-links a{font-size:14.5px;color:var(--ink-2);font-weight:450;transition:color .3s}
+.nav-links a:hover{color:var(--oxblood)}
+.nav-cta{display:flex;gap:10px;align-items:center}
+@media(max-width:900px){.nav-links{display:none}}
+
+.btn{display:inline-flex;align-items:center;gap:9px;padding:13px 22px;border-radius:100px;font-size:14.5px;font-weight:500;letter-spacing:-.005em;transition:all .4s var(--ease)}
+.btn .arr{transition:transform .4s var(--ease)}
+.btn:hover .arr{transform:translateX(3px)}
+.btn-primary{background:var(--ink);color:var(--ink-inv)}
+.btn-primary:hover{background:var(--oxblood-deep)}
+.btn-ox{background:var(--oxblood);color:var(--paper);font-weight:500}
+.btn-ox:hover{background:var(--oxblood-deep);transform:translateY(-1px);box-shadow:0 10px 30px -10px rgba(124,48,39,.5)}
+.btn-ghost{background:transparent;border:1px solid var(--line-2);color:var(--ink)}
+.btn-ghost:hover{border-color:var(--ink-2);background:rgba(0,0,0,.025)}
+
+/* hero */
+.hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;position:relative;padding-top:120px;padding-bottom:120px}
+.hero-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:56px}
+.hero-top .loc{font-family:var(--mono);font-size:12px;color:var(--ink-3)}
+.hero-top .status{display:flex;align-items:center;gap:9px;font-size:13px;color:var(--ink-2)}
+.hero-top .status .pulse{width:7px;height:7px;border-radius:50%;background:var(--sage);box-shadow:0 0 0 0 rgba(107,123,94,.5);animation:pulse 2.4s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(107,123,94,.5)}70%{box-shadow:0 0 0 9px rgba(107,123,94,0)}100%{box-shadow:0 0 0 0 rgba(107,123,94,0)}}
+.hero h1{margin:0 0 32px;max-width:16ch}
+.hero h1 .it{color:var(--oxblood)}
+.hero-sub{max-width:54ch;margin-bottom:44px}
+.hero-cta{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.hero-meta{display:grid;grid-template-columns:repeat(4,1fr);gap:0;margin-top:96px;border-top:1px solid var(--line)}
+.hero-meta .item{padding:32px 24px 0 0}
+.hero-meta .item:not(:last-child){border-right:1px solid var(--line);padding-right:24px}
+.hero-meta .n{font-family:var(--serif);font-size:clamp(32px,3.4vw,48px);line-height:1;letter-spacing:-.02em;font-weight:400;margin-left:64px}
+.hero-meta .n .u{font-size:.42em;color:var(--ink-3);font-family:var(--sans);font-style:normal;margin-left:2px;letter-spacing:0}
+.hero-meta .l{font-size:13px;color:var(--ink-3);margin-top:12px;margin-left:24px;max-width:22ch;line-height:1.45}
+@media(max-width:768px){.hero-meta{grid-template-columns:1fr 1fr}.hero-meta .item:nth-child(2){border-right:none}.hero-meta .item{padding-bottom:24px;border-bottom:1px solid var(--line)}}
+.scroll-cue{position:absolute;bottom:32px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--ink-3);letter-spacing:.18em;text-transform:uppercase;display:flex;flex-direction:column;align-items:center;gap:10px}
+.scroll-cue .line{width:1px;height:34px;background:linear-gradient(var(--ink-3),transparent);animation:cue 2s infinite}
+@keyframes cue{0%,100%{opacity:.3}50%{opacity:1}}
+
+.shead{display:grid;grid-template-columns:1.1fr .9fr;gap:64px;margin-bottom:72px;align-items:end}
+@media(max-width:768px){.shead{grid-template-columns:1fr;gap:32px}}
+.shead .right{color:var(--ink-2);font-size:17px;max-width:44ch;line-height:1.6}
+
+/* pull quote */
+.pull{padding:72px 0;text-align:center;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.pull blockquote{font-family:var(--serif);font-size:clamp(26px,3.4vw,44px);line-height:1.25;letter-spacing:-.015em;font-weight:400;max-width:26ch;margin:0 auto;font-style:italic}
+.pull blockquote .mark{color:var(--oxblood);font-style:normal}
+.pull cite{display:block;margin-top:24px;font-style:normal;font-size:14px;color:var(--ink-3);font-family:var(--sans)}
+.pull cite b{color:var(--ink);font-weight:500}
+
+/* audiences */
+.audiences{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:0}
+@media(max-width:768px){.audiences{grid-template-columns:1fr}}
+.aud{border:1px solid var(--line);border-radius:var(--r-lg);background:var(--paper);padding:40px;position:relative}
+.aud .tag{font-family:var(--mono);font-size:11px;color:var(--oxblood);letter-spacing:.05em;margin-bottom:16px}
+.aud h3{margin-bottom:14px}
+.aud p{font-size:15.5px;color:var(--ink-2);line-height:1.6;margin-bottom:18px}
+.aud ul{list-style:none;display:flex;flex-direction:column;gap:9px}
+.aud li{font-size:14px;color:var(--ink-2);display:flex;gap:11px;align-items:flex-start}
+.aud li::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--oxblood);margin-top:8px;flex:none}
+
+/* cards */
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r-lg);overflow:hidden}
+@media(max-width:900px){.cards{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:560px){.cards{grid-template-columns:1fr}}
+.card{background:var(--paper);padding:40px 34px;transition:background .4s var(--ease);min-height:280px;display:flex;flex-direction:column}
+.card:hover{background:#fff}
+.card .ic{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;margin-bottom:26px;background:rgba(124,48,39,.08)}
+.card .ic svg{width:22px;height:22px;stroke:var(--oxblood);fill:none;stroke-width:1.5}
+.card .idx{font-family:var(--mono);font-size:11px;color:var(--ink-4);letter-spacing:.05em;margin-bottom:8px}
+.card h3{margin-bottom:12px}
+.card p{font-size:15px;color:var(--ink-2);line-height:1.6}
+.card .ctag{margin-top:auto;padding-top:20px;font-family:var(--mono);font-size:11px;color:var(--oxblood);letter-spacing:.04em}
+
+/* playground */
+.play{display:grid;grid-template-columns:1.1fr .9fr;gap:24px}
+@media(max-width:960px){.play{grid-template-columns:1fr}}
+.panel{border:1px solid var(--line);border-radius:var(--r-lg);background:var(--paper);overflow:hidden}
+.panel-head{display:flex;align-items:center;justify-content:space-between;padding:20px 26px;border-bottom:1px solid var(--line);background:var(--bg-2)}
+.panel-head .t{font-size:13.5px;font-weight:500;display:flex;align-items:center;gap:10px}
+.panel-head .t .d{width:7px;height:7px;border-radius:50%;background:var(--sage);box-shadow:0 0 8px var(--sage)}
+.panel-head .id{font-family:var(--mono);font-size:11px;color:var(--ink-4)}
+.panel-body{padding:26px}
+.search-row{display:flex;gap:10px}
+.search-row input{flex:1;background:var(--bg);border:1px solid var(--line-2);color:var(--ink);padding:15px 20px;border-radius:100px;font-size:15px;font-family:inherit;outline:none;transition:all .3s}
+.search-row input:focus{border-color:var(--oxblood);box-shadow:0 0 0 4px rgba(124,48,39,.1)}
+.search-row input::placeholder{color:var(--ink-4)}
+.search-row button{padding:0 24px;border-radius:100px;background:var(--ink);color:var(--paper);font-weight:500;font-size:14.5px;display:flex;align-items:center;gap:8px;transition:all .3s var(--ease)}
+.search-row button:hover{background:var(--oxblood-deep)}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.chips span{font-size:12.5px;color:var(--ink-2);border:1px solid var(--line);padding:7px 14px;border-radius:100px;transition:all .3s;background:var(--bg)}
+.chips span:hover{color:var(--oxblood);border-color:var(--oxblood)}
+.results{margin-top:22px;display:flex;flex-direction:column;gap:10px;min-height:300px}
+.result{border:1px solid var(--line);border-radius:14px;padding:16px 20px;background:var(--bg);opacity:0;transform:translateY(10px);transition:all .5s var(--ease)}
+.result.in{opacity:1;transform:none}
+.result .rt{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:12px}
+.result .meta{font-family:var(--mono);font-size:11px;color:var(--ink-4);letter-spacing:.03em}
+.result .score{font-family:var(--mono);font-size:12px;color:var(--oxblood);font-weight:500}
+.result .txt{font-size:14px;color:var(--ink-2);line-height:1.55}
+.result .bar{height:2px;background:var(--line);border-radius:2px;margin-top:11px;overflow:hidden}
+.result .bar i{display:block;height:100%;background:var(--oxblood);border-radius:2px;width:0;transition:width 1s var(--ease)}
+.ph{color:var(--ink-4);font-size:13px;text-align:center;padding:60px 0}
+.spinner{width:15px;height:15px;border:1.5px solid rgba(244,241,234,.3);border-top-color:var(--paper);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.side-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line)}
+.side-cell{background:var(--paper);padding:24px}
+.side-cell .k{font-size:11px;color:var(--ink-4);letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px}
+.side-cell .v{font-family:var(--serif);font-size:30px;line-height:1;letter-spacing:-.02em}
+.side-cell .v small{font-size:13px;color:var(--ink-3);font-family:var(--sans);font-style:normal}
+.caps{grid-column:1/-1}
+.cap-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--line);font-size:14px}
+.cap-row:last-child{border:none}
+.cap-row .v{font-family:var(--mono);font-size:12px}
+.cap-row .ok{color:var(--sage)}.cap-row .no{color:#9A4A3C}.cap-row .na{color:var(--ink-4)}
+
+/* code */
+.code-block{border:1px solid var(--line);border-radius:var(--r-lg);background:#1C1814;overflow:hidden}
+.code-tabs{display:flex;align-items:center;padding:8px;border-bottom:1px solid rgba(255,255,255,.08)}
+.code-tab{padding:10px 18px;font-size:13.5px;font-weight:450;color:#A8A499;border-radius:8px;transition:all .3s;white-space:nowrap}
+.code-tab:hover{color:#D8D4CC}
+.code-tab.on{color:#F4F1EA;background:rgba(255,255,255,.07)}
+.code-tabs .spacer{flex:1}
+.code-tabs .fname{font-family:var(--mono);font-size:11px;color:#6B6862;padding-right:14px}
+.code-body{max-height:520px;overflow:auto}
+.code-pane{display:none;padding:30px 34px}
+.code-pane.on{display:block;animation:fadeIn .4s}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+pre{font-family:var(--mono);font-size:13.5px;line-height:1.8;color:#D8D4CC;white-space:pre}
+.kw{color:#D8A88E}.fn{color:#C9C4B7}.str{color:#B8A88C}.num{color:#D4916F}.com{color:#5A574F;font-style:italic}.ty{color:#D8C4A8}.op{color:#9A988E}
+
+/* architecture */
+.layers{border-top:1px solid var(--line)}
+.layer{display:grid;grid-template-columns:220px 1fr 120px;gap:48px;align-items:center;padding:44px 0;border-bottom:1px solid var(--line);transition:all .5s var(--ease)}
+.layer:hover{padding-left:16px}
+.layer .lvl{display:flex;align-items:baseline;gap:14px}
+.layer .lvl .num{font-family:var(--serif);font-style:italic;font-size:32px;color:var(--oxblood);line-height:1}
+.layer .lvl .name{font-size:13px;color:var(--ink-2);text-transform:uppercase;letter-spacing:.06em;font-weight:500}
+.layer .desc{font-size:17px;color:var(--ink-2);line-height:1.55}
+.layer .desc b{color:var(--ink);font-weight:600}
+.layer .tags{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
+.layer .tags span{font-family:var(--mono);font-size:11px;color:var(--ink-3);border:1px solid var(--line);padding:4px 9px;border-radius:6px;background:var(--paper)}
+@media(max-width:768px){.layer{grid-template-columns:1fr;gap:16px}.layer .tags{justify-content:flex-start}}
+
+/* perf */
+.perf{border-top:1px solid var(--line)}
+.perf-row{display:grid;grid-template-columns:2fr 1.4fr 1.4fr 2fr;gap:48px;align-items:center;padding:36px 0;border-bottom:1px solid var(--line);transition:background .4s}
+.perf-row:hover{background:rgba(255,255,255,.4)}
+.perf-row.head{font-size:11px;color:var(--ink-4);text-transform:uppercase;letter-spacing:.08em;font-weight:500}
+.perf-row .op{font-size:18px;font-weight:450}
+.perf-row .op small{display:block;font-size:13.5px;color:var(--ink-3);font-weight:400;margin-top:4px;font-family:var(--sans)}
+.perf-row .lat{font-family:var(--serif);font-size:28px;color:var(--oxblood);letter-spacing:-.01em;font-style:italic}
+.perf-row .thr{font-family:var(--mono);font-size:14px;color:var(--ink-2)}
+.perf-row .note{font-size:13.5px;color:var(--ink-3)}
+@media(max-width:768px){.perf-row{grid-template-columns:1fr 1fr;gap:10px}.perf-row .note{display:none}}
+
+/* cta */
+.cta{position:relative;padding:144px 0;text-align:center;overflow:hidden;background:var(--bg-2);border-top:1px solid var(--line)}
+.cta .glow{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:800px;height:400px;background:radial-gradient(ellipse,rgba(124,48,39,.16),transparent 70%);filter:blur(60px);z-index:0}
+.cta .wrap{position:relative;z-index:1}
+.cta h2{max-width:20ch;margin:0 auto 24px}
+.cta p{color:var(--ink-2);max-width:54ch;margin:0 auto 40px;font-size:18px}
+.cta-actions{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+
+footer{border-top:1px solid var(--line);padding:80px 0 48px;background:var(--bg)}
+.foot-top{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:56px;margin-bottom:64px}
+@media(max-width:768px){.foot-top{grid-template-columns:1fr 1fr;gap:40px}}
+.foot-brand{max-width:34ch}
+.foot-brand .lead{font-size:15px;margin-top:20px;color:var(--ink-2)}
+.foot-col h5{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-3);margin-bottom:18px;font-weight:500}
+.foot-col a{display:block;font-size:14.5px;color:var(--ink-2);margin-bottom:12px;transition:color .3s}
+.foot-col a:hover{color:var(--oxblood)}
+.foot-bot{display:flex;justify-content:space-between;align-items:flex-end;padding-top:32px;border-top:1px solid var(--line);font-size:13px;color:var(--ink-3);flex-wrap:wrap;gap:16px}
+.foot-bot .big{font-family:var(--serif);font-size:56px;color:var(--line-2);font-style:italic;line-height:.9;letter-spacing:-.02em}
+
+.reveal{opacity:0;transform:translateY(24px);transition:opacity 1s var(--ease),transform 1s var(--ease)}
+.reveal.in{opacity:1;transform:none}
+.reveal-d1{transition-delay:.08s}.reveal-d2{transition-delay:.16s}.reveal-d3{transition-delay:.24s}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}.reveal{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+<div class="grain"></div>
+
+<!-- shared logo symbol -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="seal" viewBox="0 0 48 48">
+    <circle cx="24" cy="25" r="21" fill="none" stroke="currentColor" stroke-width="1.5"/>
+    <circle cx="24" cy="25" r="17.5" fill="none" stroke="currentColor" stroke-width="0.6" opacity="0.4"/>
+    <path d="M15 27 L24 19 L33 27" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M17.5 27 V33 H30.5 V27" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+    <path d="M22 33 V29 Q24 27.4 26 29 V33" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+    <path d="M24 3.5 L26.3 6 L24 8.5 L21.7 6 Z" fill="currentColor"/>
+  </symbol>
+</svg>
+
+<!-- NAV -->
+<nav class="nav" id="nav">
+  <div class="wrap nav-inner">
+    <a class="logo" href="#top" style="color:var(--oxblood)">
+      <span class="mark"><svg><use href="#seal"/></svg></span>
+      <span class="word">Domicile <span class="sub">/ data custody</span></span>
+    </a>
+    <div class="nav-links">
+      <a href="#audiences">For whom</a>
+      <a href="#stack">The stack</a>
+      <a href="./playground.html">Playground</a>
+      <a href="#code">Code</a>
+      <a href="#architecture">Architecture</a>
+    </div>
+    <div class="nav-cta">
+      <a class="btn btn-ghost" href="https://www.npmjs.com/package/domicile" target="_blank" rel="noopener">npm</a>
+      <a class="btn btn-ox" href="#code">Get started <span class="arr">→</span></a>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<header class="hero" id="top">
+  <div class="wrap">
+    <div class="hero-top">
+      <div class="loc">v0.2.0 — MIT — in-browser residency</div>
+      <div class="status"><span class="pulse"></span> All compute runs on your device</div>
+    </div>
+    <h1 class="h1">Your data,<br><span class="it">domiciled</span> on<br>your device.</h1>
+    <p class="lead hero-sub">Domicile is a private AI stack — vector database, RAG, and a local LLM — that runs entirely in the browser. On-prem-grade data custody and privilege protection, without the on-prem infrastructure. Your documents never leave their legal residence.</p>
+    <div class="hero-cta">
+      <a class="btn btn-primary" href="./playground.html">See it work <span class="arr">→</span></a>
+      <a class="btn btn-ghost" href="#audiences">For law firms &amp; integrators</a>
+      <span class="muted" style="font-size:13.5px;font-family:var(--mono)">$ npm install domicile</span>
+    </div>
+    <div class="hero-meta">
+      <div class="item"><div class="n"><span data-count="0">0</span></div><div class="l">Bytes egressing the device — ever</div></div>
+      <div class="item"><div class="n"><span data-count="100">0</span>K+</div><div class="l">Documents held in client-side custody</div></div>
+      <div class="item"><div class="n"><span data-count="7"></span><span class="u">ms</span></div><div class="l">Retrieval p99 at 10K vectors</div></div>
+      <div class="item"><div class="n">∞</div><div class="l">Privilege protection, no per-seat cloud fees</div></div>
+    </div>
+  </div>
+  <div class="scroll-cue">Scroll<span class="line"></span></div>
+</header>
+
+<!-- PULL QUOTE -->
+<section class="pull">
+  <div class="wrap">
+    <blockquote>Privilege isn't a policy you configure. <span class="mark">It's a boundary you build.</span></blockquote>
+    <cite><b>Domicile</b> — data domiciled in-browser, not on-prem, not in the cloud</cite>
+  </div>
+</section>
+
+<!-- AUDIENCES -->
+<section id="audiences">
+  <div class="wrap">
+    <div class="shead">
+      <div class="reveal">
+        <div class="eyebrow">For whom</div>
+        <h2 class="h2" style="margin-top:20px">On-prem custody,<br><span class="it">without the on-prem.</span></h2>
+      </div>
+      <div class="right reveal reveal-d1">Domicile serves two sides of the same need: the firms that require data residency and privilege protection, and the teams who deploy and maintain that custody for them.</div>
+    </div>
+
+    <div class="audiences reveal">
+      <div class="aud">
+        <div class="tag">01 — Law firms &amp; legal teams</div>
+        <h3 class="h3">For those who can't afford on-prem — but can't afford a leak either.</h3>
+        <p>Sensitive matter files, privileged communications, and client data never leave the workstation. Domicile runs RAG and generation locally, so attorney-client privilege isn't routed through a third-party cloud.</p>
+        <ul>
+          <li>GDPR-compliant by construction — zero network egress</li>
+          <li>Privilege protection without per-seat SaaS contracts</li>
+          <li>Works offline — airport, courtroom, client site</li>
+          <li>Document Q&amp;A grounded in your own matter files, with citations</li>
+        </ul>
+      </div>
+      <div class="aud">
+        <div class="tag">02 — Integration &amp; infra teams</div>
+        <h3 class="h3">The stack your integration practice deploys, not hosts.</h3>
+        <p>Domicile is the custody layer you offer clients who want on-prem guarantees without on-prem capital expense. Ship it inside their app, configure residency, walk away — no servers to run, no data plane to secure.</p>
+        <ul>
+          <li>One library to embed — no infrastructure to provision or maintain</li>
+          <li>Configurable residency: device-only, with optional local export</li>
+          <li>MCP integration for the agent stacks you already wire up</li>
+          <li>Export/import for migration and client hand-off</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- STACK -->
+<section id="stack">
+  <div class="wrap">
+    <div class="shead">
+      <div class="reveal">
+        <div class="eyebrow">The stack</div>
+        <h2 class="h2" style="margin-top:20px">One library.<br><span class="it">The whole custody pipeline.</span></h2>
+      </div>
+      <div class="right reveal reveal-d1">Storage, indexing, embeddings, generation and an agent protocol — wired together, all in the browser, all swappable. The complete residence for your data, held on the device it belongs to.</div>
+    </div>
+
+    <div class="cards reveal">
+      <div class="card">
+        <div class="ic"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg></div>
+        <div class="idx">01 — custody</div>
+        <h3 class="h3">Vector database</h3>
+        <p>Persistent client-side storage in IndexedDB with a pure-TypeScript HNSW graph index. Hold and search 100K+ documents with cosine, euclidean or dot metrics — real similarity scores, non-rebuilding deletes — all in residence on the device.</p>
+        <div class="ctag">indexeddb · hnsw</div>
+      </div>
+      <div class="card">
+        <div class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><circle cx="5" cy="5" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><path d="M7 7l3 3M17 7l-3 3M7 17l3-3M17 17l-3-3"/></svg></div>
+        <div class="idx">02 — embeddings</div>
+        <h3 class="h3">Local embeddings</h3>
+        <p>Transformers.js with WebGPU acceleration and a WASM fallback. Model weights cached on-device, so repeat queries never reach the network.</p>
+        <div class="ctag">transformers.js</div>
+      </div>
+      <div class="card">
+        <div class="ic"><svg viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 0-4 12.7V18h8v-3.3A7 7 0 0 0 12 2z"/><path d="M9 21h6M10 18v3M14 18v3"/></svg></div>
+        <div class="idx">03 — generation</div>
+        <h3 class="h3">Dual LLM runtime</h3>
+        <p>WebLLM for GPU-fast inference, Wllama for CPU portability — automatic fallback so generation works on any workstation your firm issues.</p>
+        <div class="ctag">webllm · wllama</div>
+      </div>
+      <div class="card">
+        <div class="ic"><svg viewBox="0 0 24 24"><path d="M4 4h12l4 4v12H4z"/><path d="M16 4v4h4"/><path d="M8 13h8M8 17h5"/></svg></div>
+        <div class="idx">04 — rag</div>
+        <h3 class="h3">RAG with citations</h3>
+        <p>Answers grounded in your matter files, with source citations linking every claim back to the document that grounded it — auditable privilege, not black-box output.</p>
+        <div class="ctag">rag · streaming</div>
+      </div>
+      <div class="card">
+        <div class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></div>
+        <div class="idx">05 — protocol</div>
+        <h3 class="h3">MCP, for agents</h3>
+        <p>Expose your custody layer as Model Context Protocol tools — wire Domicile into Claude Desktop and the agent stacks your integration team already builds on.</p>
+        <div class="ctag">model context protocol</div>
+      </div>
+      <div class="card">
+        <div class="ic"><svg viewBox="0 0 24 24"><path d="M12 3l7 4v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V7l7-4z"/><path d="M9 12l2 2 4-4"/></svg></div>
+        <div class="idx">06 — residency</div>
+        <h3 class="h3">Resident by design</h3>
+        <p>Data domiciled on the device — no cloud egress, no third-party processors, no residency drift. The boundary is architectural, not a configuration someone can forget to check.</p>
+        <div class="ctag">zero egress · gdpr</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PLAYGROUND lives in its own page now: ./playground.html -->
+
+<!-- CODE -->
+<section id="code">
+  <div class="wrap">
+    <div class="shead">
+      <div class="reveal">
+        <div class="eyebrow">Developer experience</div>
+        <h2 class="h2" style="margin-top:20px">Five lines to<br><span class="it">a custody layer.</span></h2>
+      </div>
+      <div class="right reveal reveal-d1">A clean, fully-typed TypeScript API. No servers to provision, no data plane to secure. Embed it in the client app, configure residency, hand it off.</div>
+    </div>
+
+    <div class="code-block reveal">
+      <div class="code-tabs">
+        <div class="code-tab on" data-tab="quick">Quickstart</div>
+        <div class="code-tab" data-tab="search">Retrieval</div>
+        <div class="code-tab" data-tab="rag">RAG pipeline</div>
+        <div class="code-tab" data-tab="mcp">MCP server</div>
+        <div class="spacer"></div>
+        <div class="fname">domicile.ts</div>
+      </div>
+      <div class="code-body">
+<pre class="code-pane on" data-pane="quick"><span class="com">// npm install domicile</span>
+<span class="kw">import</span> Domicile <span class="kw">from</span> <span class="str">'domicile'</span>;
+
+<span class="com">// A private, in-browser custody layer</span>
+<span class="kw">const</span> db = <span class="kw">new</span> <span class="fn">Domicile</span>({
+  storage:   { dbName: <span class="str">'matter-files'</span> },
+  index:     { dimensions: <span class="num">384</span>, metric: <span class="str">'cosine'</span> },
+  embedding: { model: <span class="str">'Xenova/all-MiniLM-L6-v2'</span>, device: <span class="str">'webgpu'</span> },
+});
+
+<span class="kw">await</span> db.<span class="fn">initialize</span>();
+
+<span class="kw">await</span> db.<span class="fn">insert</span>({
+  text: <span class="str">'Privileged communication — attorney work product'</span>,
+  metadata: { matter: <span class="str">'M-204'</span>, privilege: <span class="str">'true'</span> },
+});
+
+<span class="kw">const</span> results = <span class="kw">await</span> db.<span class="fn">search</span>({ text: <span class="str">'summary of work product'</span>, k: <span class="num">5</span> });
+console.<span class="fn">log</span>(results);</pre>
+
+<pre class="code-pane" data-pane="search"><span class="com">// Retrieval with privilege-aware metadata filtering</span>
+<span class="kw">const</span> results = <span class="kw">await</span> db.<span class="fn">search</span>({
+  text: <span class="str">'indemnification clauses'</span>,
+  k: <span class="num">10</span>,
+  filter: { field: <span class="str">'matter'</span>, operator: <span class="str">'eq'</span>, value: <span class="str">'M-204'</span> },
+});
+
+<span class="kw">for</span> (<span class="kw">const</span> r <span class="kw">of</span> results) {
+  console.<span class="fn">log</span>(r.score.<span class="fn">toFixed</span>(<span class="num">3</span>), r.metadata);
+}
+
+<span class="com">// Inspect custody state</span>
+<span class="kw">const</span> stats: <span class="ty">IndexStats</span> = <span class="kw">await</span> db.<span class="fn">stats</span>();
+console.<span class="fn">log</span>(stats.vectorCount, stats.memoryUsage);</pre>
+
+<pre class="code-pane" data-pane="rag"><span class="kw">import</span> { RAGPipelineManager, WllamaProvider } <span class="kw">from</span> <span class="str">'domicile'</span>;
+
+<span class="kw">const</span> llm = <span class="kw">new</span> <span class="fn">WllamaProvider</span>({ model: <span class="str">'...'</span> });
+<span class="kw">const</span> rag = <span class="kw">new</span> <span class="fn">RAGPipelineManager</span>(db, llm, embedding);
+
+<span class="com">// Ask questions grounded in privileged matter files</span>
+<span class="kw">const</span> result = <span class="kw">await</span> rag.<span class="fn">query</span>(<span class="str">'Summarize the indemnification position.'</span>, {
+  topK: <span class="num">3</span>,
+  generateOptions: { maxTokens: <span class="num">256</span>, temperature: <span class="num">0.7</span> },
+});
+
+console.<span class="fn">log</span>(result.answer);   <span class="com">// generated response</span>
+console.<span class="fn">log</span>(result.sources);  <span class="com">// cited source documents</span></pre>
+
+<pre class="code-pane" data-pane="mcp"><span class="kw">import</span> { MCPServer } <span class="kw">from</span> <span class="str">'domicile'</span>;
+
+<span class="com">// Expose your custody layer as tools for AI agents</span>
+<span class="kw">const</span> mcp = <span class="kw">new</span> <span class="fn">MCPServer</span>(db, rag);
+
+<span class="kw">const</span> tools: <span class="ty">MCPTool</span>[] = mcp.<span class="fn">getTools</span>();
+<span class="com">// → [search, insert, rag_query, ...]</span>
+
+<span class="com">// Wire into Claude Desktop or any MCP-aware agent</span>
+mcp.<span class="fn">serve</span>({ transport: <span class="str">'stdio'</span> });</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ARCHITECTURE -->
+<section id="architecture">
+  <div class="wrap">
+    <div class="shead">
+      <div class="reveal">
+        <div class="eyebrow">Under the hood</div>
+        <h2 class="h2" style="margin-top:20px">A layered,<br><span class="it">resident-by-design stack.</span></h2>
+      </div>
+      <div class="right reveal reveal-d1">Each layer is swappable and runs without a server. Data flows down; answers flow up — all on the device. Replace a component and the residency boundary holds.</div>
+    </div>
+
+    <div class="layers reveal">
+      <div class="layer">
+        <div class="lvl"><span class="num">i</span><span class="name">Interface</span></div>
+        <div class="desc">Your application talks to a clean TypeScript API, or to <b>AI agents over MCP</b> — Claude Desktop, ChatGPT, anything that speaks the protocol.</div>
+        <div class="tags"><span>api</span><span>mcp</span></div>
+      </div>
+      <div class="layer">
+        <div class="lvl"><span class="num">ii</span><span class="name">Intelligence</span></div>
+        <div class="desc">The <b>RAG pipeline manager</b> orchestrates retrieval and generation, with WebLLM and Wllama runtimes and automatic GPU→CPU fallback.</div>
+        <div class="tags"><span>rag</span><span>webllm</span><span>wllama</span></div>
+      </div>
+      <div class="layer">
+        <div class="lvl"><span class="num">iii</span><span class="name">Retrieval</span></div>
+        <div class="desc"><b>Transformers.js</b> produces embeddings; the <b>pure-TS HNSW</b> index returns nearest neighbours with real scores. A BM25 sparse index fuses with dense via reciprocal-rank fusion, and a cross-encoder reranker sharpens the top-k — all filtered by metadata.</div>
+        <div class="tags"><span>embed</span><span>hnsw</span><span>bm25</span><span>rerank</span><span>filter</span></div>
+      </div>
+      <div class="layer">
+        <div class="lvl"><span class="num">iv</span><span class="name">Custody</span></div>
+        <div class="desc"><b>IndexedDB</b> storage manager with quota-aware eviction and JSON / binary export-import for migration and client hand-off.</div>
+        <div class="tags"><span>indexeddb</span><span>export</span></div>
+      </div>
+      <div class="layer">
+        <div class="lvl"><span class="num">v</span><span class="name">Acceleration</span></div>
+        <div class="desc">GPU compute when WebGPU is available, <b>WASM SIMD</b> fallback otherwise, with a worker pool for batched parallelism.</div>
+        <div class="tags"><span>webgpu</span><span>wasm</span><span>workers</span></div>
+      </div>
+      <div class="layer">
+        <div class="lvl"><span class="num">vi</span><span class="name">Reliability</span></div>
+        <div class="desc">A typed error hierarchy, LRU caches, a memory manager, and a built-in <b>benchmark runner</b> to measure it all.</div>
+        <div class="tags"><span>errors</span><span>lru</span><span>bench</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PERFORMANCE -->
+<section id="performance">
+  <div class="wrap">
+    <div class="shead">
+      <div class="reveal">
+        <div class="eyebrow">Measured</div>
+        <h2 class="h2" style="margin-top:20px">Fast enough<br><span class="it">for the matter at hand.</span></h2>
+      </div>
+      <div class="right reveal reveal-d1">Reproducible from <code class="mono">domicile bench</code> — the same suite that gates the build. Measured on a Linux/server CPU (Node); a browser WebGPU run will differ, so run it on your own hardware.</div>
+    </div>
+
+    <div class="perf reveal">
+      <div class="perf-row head">
+        <div>Operation</div><div>Latency</div><div>Throughput / Quality</div><div>Notes</div>
+      </div>
+      <div class="perf-row">
+        <div class="op">Search<small>10K vectors, 128-dim cosine</small></div>
+        <div class="lat">p50 2.4ms<br>p99 7ms</div>
+        <div class="thr">recall@10 = 0.91</div>
+        <div class="note">Pure-TS HNSW, real scores, warm cache</div>
+      </div>
+      <div class="perf-row">
+        <div class="op">Search<small>1K vectors, 128-dim cosine</small></div>
+        <div class="lat">p50 1.4ms<br>p99 1.8ms</div>
+        <div class="thr">recall@10 = 1.00</div>
+        <div class="note">Non-rebuilding delete &lt; 0.01ms</div>
+      </div>
+      <div class="perf-row">
+        <div class="op">Citation accuracy<small>legal known-answer corpus</small></div>
+        <div class="lat">—</div>
+        <div class="thr">recall@3 = 0.92</div>
+        <div class="note">Dense + hybrid + rerank retrieval</div>
+      </div>
+      <div class="perf-row">
+        <div class="op">RAG query<small>full pipeline</small></div>
+        <div class="lat">retrieval + generate</div>
+        <div class="thr">streaming</div>
+        <div class="note">Local LLM, browser-bound</div>
+      </div>
+    </div>
+    <p class="muted reveal" style="font-size:12.5px;font-family:var(--mono);margin-top:14px">Reproduce: <code>npm run build &amp;&amp; node dist/cli/index.js bench</code> · <code>node dist/cli/index.js bench --citation</code></p>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta">
+  <div class="glow"></div>
+  <div class="wrap reveal">
+    <div class="eyebrow" style="justify-content:center;display:flex">Start building</div>
+    <h2 class="h2" style="margin-top:24px">On-prem custody,<br><span class="it ox">without the on-prem.</span></h2>
+    <p>Zero infrastructure. Zero egress. Zero third-party processors. Just the device, the data, and a library that keeps the two together.</p>
+    <div class="cta-actions">
+      <a class="btn btn-ox" href="https://www.npmjs.com/package/domicile" target="_blank" rel="noopener">Install Domicile <span class="arr">→</span></a>
+      <a class="btn btn-ghost" href="https://github.com/kyrillosishak/domicile" target="_blank" rel="noopener">View on GitHub</a>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="wrap">
+    <div class="foot-top">
+      <div class="foot-brand">
+        <a class="logo" href="#top" style="color:var(--oxblood)">
+          <span class="mark"><svg><use href="#seal"/></svg></span>
+          <span class="word">Domicile</span>
+        </a>
+        <p class="lead">Your data's legal residence, in the browser. A private AI stack for firms that need custody, and the teams who deploy it.</p>
+      </div>
+      <div class="foot-col">
+        <h5>Docs</h5>
+        <a href="../docs/QUICKSTART.md">Quickstart</a>
+        <a href="../docs/API.md">API reference</a>
+        <a href="../docs/RAG_TUTORIAL.md">RAG tutorial</a>
+        <a href="../docs/PERFORMANCE.md">Performance</a>
+      </div>
+      <div class="foot-col">
+        <h5>Examples</h5>
+        <a href="../examples/semantic-search-demo.html">Semantic search</a>
+        <a href="../examples/rag-chatbot-demo.html">RAG chatbot</a>
+        <a href="../examples/benchmark-demo-simple.html">Benchmarks</a>
+        <a href="../examples/README.md">All examples</a>
+      </div>
+      <div class="foot-col">
+        <h5>Project</h5>
+        <a href="https://github.com/kyrillosishak/domicile">GitHub</a>
+        <a href="https://www.npmjs.com/package/domicile">npm</a>
+        <a href="../docs/MIGRATION.md">Migration</a>
+        <a href="../docs/TROUBLESHOOTING.md">Troubleshooting</a>
+      </div>
+    </div>
+    <div class="foot-bot">
+      <span>MIT © 2026 Domicile — Built for privacy-conscious legal &amp; integration teams</span>
+      <span class="big">Domicile.</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function(){const n=document.getElementById('nav');addEventListener('scroll',()=>n.classList.toggle('scrolled',scrollY>30),{passive:true})})();
+(function(){const o=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');o.unobserve(e.target)}}),{threshold:.12,rootMargin:'0px 0px -40px'});document.querySelectorAll('.reveal').forEach(e=>o.observe(e))})();
+(function(){const o=new IntersectionObserver(es=>es.forEach(en=>{if(!en.isIntersecting)return;const el=en.target;o.unobserve(el);const t=+el.dataset.count,d=1400,s=performance.now();const step=n=>{const p=Math.min(1,(n-s)/d);el.textContent=Math.floor((1-Math.pow(1-p,3))*t).toLocaleString();if(p<1)requestAnimationFrame(step)};requestAnimationFrame(step)}),{threshold:.5});document.querySelectorAll('[data-count]').forEach(e=>o.observe(e))})();
+(function(){const t=document.querySelectorAll('.code-tab'),p=document.querySelectorAll('.code-pane');t.forEach(x=>x.onclick=()=>{t.forEach(y=>y.classList.remove('on'));p.forEach(y=>y.classList.remove('on'));x.classList.add('on');document.querySelector(`[data-pane="${x.dataset.tab}"]`).classList.add('on')})})();
+</script>
+</body>
+</html>

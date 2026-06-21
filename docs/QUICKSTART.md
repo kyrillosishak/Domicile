@@ -1,20 +1,20 @@
 # Quickstart Guide
 
-Get started with Haven in 5 minutes. This guide covers installation, basic setup, and common operations.
+Get started with Domicile in 5 minutes. This guide covers installation, basic setup, and common operations.
 
 ## Installation
 
 ### NPM
 
 ```bash
-npm install haven
+npm install domicile
 ```
 
 ### CDN (ES Modules)
 
 ```html
 <script type="module">
-  import { VectorDB } from 'https://cdn.jsdelivr.net/npm/haven@latest/dist/index.js';
+  import { VectorDB } from 'https://cdn.jsdelivr.net/npm/domicile@latest/dist/index.js';
 </script>
 ```
 
@@ -23,7 +23,7 @@ npm install haven
 ### 1. Create a Database
 
 ```typescript
-import { VectorDB } from 'haven';
+import { VectorDB } from 'domicile';
 
 const db = new VectorDB({
   storage: {
@@ -182,7 +182,7 @@ console.log('Database cleared');
 Here's a complete working example:
 
 ```typescript
-import { VectorDB } from 'haven';
+import { VectorDB } from 'domicile';
 
 async function main() {
   // 1. Create and initialize database
@@ -275,7 +275,7 @@ main().catch(console.error);
   <div id="results"></div>
 
   <script type="module">
-    import { VectorDB } from 'https://cdn.jsdelivr.net/npm/haven@latest/dist/index.js';
+    import { VectorDB } from 'https://cdn.jsdelivr.net/npm/domicile@latest/dist/index.js';
 
     let db;
 

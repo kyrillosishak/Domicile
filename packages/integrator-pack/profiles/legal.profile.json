@@ -1,0 +1,17 @@
+{
+  "name": "legal",
+  "description": "Attorney-client privilege custody: matter-scoped, privilege-aware, citation-required.",
+  "embedding": { "model": "Xenova/all-MiniLM-L6-v2", "dimensions": 384 },
+  "metric": "cosine",
+  "indexType": "hnsw",
+  "matterScope": { "field": "matter", "value": "M-DEMO", "enforceOn": ["search_vectors", "insert_document", "delete_document", "rag_query"] },
+  "rag": {
+    "hybridByDefault": true,
+    "rerankByDefault": false,
+    "topK": 5,
+    "maxContextTokens": 2000,
+    "systemPrompt": "You are a legal-research assistant operating under attorney-client privilege. Answer ONLY from the provided matter context. Cite each claim by [n]. If the context is insufficient, say so — never fabricate citations or statutes.",
+    "contextItemTemplate": "[{index}] (score {score}) {content}"
+  },
+  "residency": { "allowModelWeights": true, "egressAllowlist": ["huggingface.co", "cdn.jsdelivr.net"] }
+}

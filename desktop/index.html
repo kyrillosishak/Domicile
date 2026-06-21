@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Domicile — Desktop</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&family=Inter:wght@400;450;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="grain"></div>
+  <header class="topbar">
+    <div class="brand">
+      <span class="mark">Domicile</span>
+      <span class="sub">private custody · on-device</span>
+    </div>
+    <div class="egress">
+      <span id="egress-count" class="egress-zero">0 bytes egress</span>
+    </div>
+  </header>
+
+  <main class="grid">
+    <!-- MATTER WORKSPACE -->
+    <section class="panel matter" id="matter-panel">
+      <h2 class="panel-title">Matter workspace</h2>
+      <p class="panel-hint">Drop a matter folder or paste text. Documents are chunked, embedded, and held in local custody — nothing leaves this device.</p>
+      <div id="dropzone" class="dropzone">
+        <input id="file-input" type="file" multiple accept=".txt,.md,.json,.csv,.html" hidden />
+        <p>Drop files here, or <button id="pick" class="link">browse</button></p>
+        <p class="small">.txt .md .json .csv .html</p>
+      </div>
+      <div class="paste">
+        <textarea id="paste" rows="3" placeholder="…or paste a passage"></textarea>
+        <button id="add-paste" class="btn">Add passage</button>
+      </div>
+      <div id="ingest-progress" class="progress" hidden>
+        <div class="bar"><div id="ingest-bar" class="bar-fill"></div></div>
+        <span id="ingest-label" class="small"></span>
+      </div>
+      <div class="stats">
+        <span id="doc-count">0 documents</span>
+      </div>
+    </section>
+
+    <!-- ASK -->
+    <section class="panel ask" id="ask-panel">
+      <h2 class="panel-title">Ask</h2>
+      <div class="ask-input">
+        <input id="query" type="text" placeholder="Ask a grounded question…" />
+        <button id="ask-btn" class="btn primary">Ask</button>
+      </div>
+      <div id="answer" class="answer" aria-live="polite"></div>
+      <div id="citations" class="citations"></div>
+    </section>
+
+    <!-- CUSTODY PANEL -->
+    <aside class="panel custody" id="custody-panel">
+      <h2 class="panel-title">Custody</h2>
+      <ul id="cap-list" class="cap-list"></ul>
+      <dl class="meta">
+        <div><dt>Engine</dt><dd id="meta-engine">—</dd></div>
+        <div><dt>Index</dt><dd id="meta-index">—</dd></div>
+        <div><dt>Documents</dt><dd id="meta-docs">0</dd></div>
+        <div><dt>Device tier</dt><dd id="meta-tier">—</dd></div>
+      </dl>
+    </aside>
+
+    <!-- SETTINGS -->
+    <section class="panel settings" id="settings-panel">
+      <h2 class="panel-title">Settings</h2>
+      <label class="field">
+        <span>Embedding model</span>
+        <input id="set-model" type="text" value="Xenova/all-MiniLM-L6-v2" />
+      </label>
+      <label class="field">
+        <span>Matter id</span>
+        <input id="set-matter" type="text" placeholder="M-204" />
+      </label>
+      <label class="field check">
+        <input id="set-hybrid" type="checkbox" checked />
+        <span>Hybrid search (BM25 + dense)</span>
+      </label>
+      <label class="field check">
+        <input id="set-rerank" type="checkbox" />
+        <span>Rerank (cross-encoder)</span>
+      </label>
+      <div class="settings-actions">
+        <button id="export-btn" class="btn">Export matter</button>
+        <button id="clear-btn" class="btn danger">Clear custody</button>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">Domicile Desktop — Tauri webview reference. Zero egress is asserted by the residency guard.</footer>
+
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>

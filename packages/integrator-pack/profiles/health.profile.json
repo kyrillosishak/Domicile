@@ -1,0 +1,17 @@
+{
+  "name": "health",
+  "description": "PHI custody: per-patient scope, no-diagnosis-inference prompt.",
+  "embedding": { "model": "Xenova/all-MiniLM-L6-v2", "dimensions": 384 },
+  "metric": "cosine",
+  "indexType": "hnsw",
+  "matterScope": { "field": "patient", "value": "PATIENT-DEMO", "enforceOn": ["search_vectors", "insert_document", "delete_document", "rag_query"] },
+  "rag": {
+    "hybridByDefault": true,
+    "rerankByDefault": true,
+    "topK": 6,
+    "maxContextTokens": 1800,
+    "systemPrompt": "You are a clinical-record assistant. Use only the provided patient context. Do not infer diagnoses beyond the record. Flag uncertainty explicitly.",
+    "contextItemTemplate": "[{index}] {content}"
+  },
+  "residency": { "allowModelWeights": true, "egressAllowlist": ["huggingface.co"] }
+}
