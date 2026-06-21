@@ -3,7 +3,7 @@
 <br>
 
 <h1>
-  <img src="./assets/logo.png" alt="Domicile Logo" height="120" align="center"/>
+  <img src="https://raw.githubusercontent.com/kyrillosishak/Domicile/main/assets/logo.png" alt="Domicile Logo" height="120" align="center"/>
 </h1>
 
 **Your data, domiciled on your device.**
