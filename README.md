@@ -3,174 +3,147 @@
 <br>
 
 <h1>
-  <img src="./assets/Frame 1.png" alt="Haven Logo" height="200" align="center"/>
+  <img src="./assets/Frame 1.png" alt="Domicile Logo" height="200" align="center"/>
 </h1>
 
+**Your data, domiciled on your device.**
 
-**Your Private AI Stack**
+On-prem privacy, in the browser — vector database, RAG, and local LLM. All processing stays client-side, with zero egress.
 
-Vector database + RAG + LLM—all in the browser
-
-[![npm](https://img.shields.io/npm/v/haven)](https://www.npmjs.com/package/haven)
+[![npm](https://img.shields.io/npm/v/domicile)](https://www.npmjs.com/package/domicile)
 [![License](https://img.shields.io/badge/license-MIT-blue)](./LICENSE)
 
 </div>
 
 ---
 
-## Why Haven?
+## Why Domicile?
 
-Build RAG applications without cloud dependencies. All processing happens client-side using WebAssembly and WebGPU.
+Domicile is a private AI stack — vector database, RAG, and a local LLM that runs entirely in the browser. On-prem-grade data custody and privilege protection, without the on-prem infrastructure. Your documents never leave their legal residence.
 
-- 🔒 **Private**: Data never leaves the browser
-- ⚡ **Fast**: WebGPU acceleration with WASM fallback
-- 💰 **Free**: Zero cloud costs, no API keys
-- 📦 **Complete**: Vector DB + embeddings + LLM + RAG
-- 🌐 **Offline**: Works without internet after initial load
+- **Private**: Data never leaves the device — zero egress, zero third-party processors
+- **Fast**: WebGPU acceleration with WASM SIMD fallback
+- **Free**: Zero cloud costs, no API keys, no per-seat fees
+- **Complete**: Vector DB + embeddings + dual LLM + RAG with citations
+- **Offline**: Works without internet after initial load
 
 ## Quick Start
 
 ```bash
-npm install haven
+npm install domicile
 ```
 
 ```typescript
-import Haven from 'haven';
+import Domicile from 'domicile';
 
-// Create database
-const db = new Haven({
-  storage: { dbName: 'my-app' },
-  index: { dimensions: 384, metric: 'cosine' },
-  embedding: { model: 'Xenova/all-MiniLM-L6-v2', device: 'wasm' },
+// A private, in-browser custody layer
+const db = new Domicile({
+  storage:   { dbName: 'matter-files' },
+  index:     { dimensions: 384, metric: 'cosine' },
+  embedding: { model: 'Xenova/all-MiniLM-L6-v2', device: 'webgpu' },
 });
 
 await db.initialize();
 
-// Add documents
 await db.insert({
-  text: 'Haven is a privacy-first vector database for browsers',
-  metadata: { category: 'intro' },
+  text: 'Privileged communication — attorney work product',
+  metadata: { matter: 'M-204', privilege: 'true' },
 });
 
-// Semantic search
-const results = await db.search({
-  text: 'What is Haven?',
-  k: 5,
-});
-
+const results = await db.search({ text: 'summary of work product', k: 5 });
 console.log(results);
 ```
 
 ## Features
 
-- **Vector Search**: Store and search 100K+ documents with semantic understanding
-- **Local Embeddings**: Transformers.js integration with WebGPU acceleration
-- **Private RAG**: Complete retrieval-augmented generation pipeline
-- **Dual LLM Support**: WebLLM (WebGPU) + Wllama (WASM) with automatic fallback
-- **MCP Integration**: Works with Claude Desktop and AI agent ecosystems
-- **Easy Integration**: Clean TypeScript API with full type safety
+- **Vector Database**: Persistent client-side storage in IndexedDB with a pure-TypeScript HNSW graph index. Hold and search 100K+ documents with cosine, euclidean or dot metrics — real similarity scores, non-rebuilding deletes — all in residence on the device.
+- **Local Embeddings**: Transformers.js with WebGPU acceleration and a WASM fallback. Model weights cached on-device, so repeat queries never reach the network.
+- **Dual LLM Runtime**: WebLLM for GPU-fast inference, Wllama for CPU portability — automatic fallback so generation works on any workstation.
+- **RAG with Citations**: Answers grounded in your source documents, with citations linking every claim back to the document that grounded it — auditable, not black-box.
+- **MCP Integration**: Expose your custody layer as Model Context Protocol tools — wire Domicile into Claude Desktop and the agent stacks your team already builds on.
+- **Resident by Design**: Data domiciled on the device — no cloud egress, no third-party processors, no residency drift. The boundary is architectural, not a configuration someone can forget to check.
 
-## Use Cases
+## For Whom
 
-**Privacy-Critical Applications**
-- Legal tech, healthcare, finance
-- GDPR-compliant by design
-- Attorney-client privilege protection
+**Law Firms & Legal Teams** — Sensitive matter files, privileged communications, and client data never leave the workstation. Domicile runs RAG and generation locally, so attorney-client privilege is never routed through a third-party cloud. GDPR-compliant by construction, works offline.
 
-**Offline-First Apps**
-- Browser extensions
-- Electron applications
-- Progressive web apps
-
-**Cost-Sensitive Projects**
-- Zero cloud infrastructure costs
-- No API rate limits
-- Unlimited usage
+**Integration & Infra Teams** — The custody layer you offer clients who want on-prem guarantees without on-prem capital expense. Ship it inside their app, configure residency, walk away — no servers to run, no data plane to secure.
 
 ## Core Features
 
 ### Vector Search
 ```typescript
-// Semantic search with metadata filtering
+// Retrieval with metadata filtering
 const results = await db.search({
-  text: 'machine learning concepts',
+  text: 'indemnification clauses',
   k: 10,
-  filter: { field: 'category', operator: 'eq', value: 'AI' },
+  filter: { field: 'matter', operator: 'eq', value: 'M-204' },
 });
+
+for (const r of results) {
+  console.log(r.score.toFixed(3), r.metadata);
+}
+
+// Inspect custody state
+const stats: IndexStats = await db.stats();
+console.log(stats.vectorCount, stats.memoryUsage);
 ```
 
 ### RAG Pipeline
 ```typescript
-import { RAGPipelineManager, WllamaProvider } from 'haven';
+import { RAGPipelineManager, WllamaProvider } from 'domicile';
 
-// Setup RAG with local LLM
 const llm = new WllamaProvider({ model: '...' });
 const rag = new RAGPipelineManager(db, llm, embedding);
 
-// Ask questions with context
-const result = await rag.query('What is machine learning?', {
+// Ask questions grounded in your documents
+const result = await rag.query('Summarize the position.', {
   topK: 3,
   generateOptions: { maxTokens: 256, temperature: 0.7 },
 });
 
 console.log(result.answer);
-console.log(result.sources); // Citations
+console.log(result.sources); // Cited source documents
 ```
 
 ### MCP Integration
 ```typescript
-import { MCPServer } from 'haven';
+import { MCPServer } from 'domicile';
 
-// Expose as MCP tools for AI agents
+// Expose your custody layer as tools for AI agents
 const mcp = new MCPServer(db, rag);
 
-// Use with Claude Desktop, ChatGPT, etc.
-const tools = mcp.getTools();
+const tools: MCPTool[] = mcp.getTools();
+// → [search, insert, rag_query, ...]
+
+// Wire into Claude Desktop or any MCP-aware agent
+mcp.serve({ transport: 'stdio' });
 ```
-
-## Documentation
-
-### Getting Started
-- **[Quickstart Guide](./docs/QUICKSTART.md)** - Get up and running in 5 minutes
-- **[API Reference](./docs/API.md)** - Complete API documentation
-- **[Examples](./examples/README.md)** - Code examples and demos
-
-### Tutorials
-- **[RAG Pipeline Tutorial](./docs/RAG_TUTORIAL.md)** - Build RAG applications
-- **[MCP Integration Guide](./docs/MCP_INTEGRATION.md)** - Integrate with AI assistants
-
-### Advanced
-- **[Performance Tuning](./docs/PERFORMANCE.md)** - Optimize for production
-- **[Troubleshooting](./docs/TROUBLESHOOTING.md)** - Common issues and solutions
-- **[Testing Guide](./docs/TESTING.md)** - Testing strategies
 
 ## Architecture
 
-Haven combines multiple technologies into a cohesive stack:
+A layered, resident-by-design stack. Each layer is swappable and runs without a server. Data flows down; answers flow up — all on the device.
 
-- **Storage**: IndexedDB for persistent vector storage
-- **Indexing**: Voy (WASM) for fast k-d tree search
-- **Embeddings**: Transformers.js with WebGPU/WASM
-- **LLMs**: WebLLM (WebGPU) and Wllama (WASM)
-- **Protocol**: MCP for AI agent integration
-
-All components run entirely in the browser with zero server dependencies.
-
-### High-Level Architecture Diagram
+- **Interface**: Your application talks to a clean TypeScript API, or to AI agents over MCP — Claude Desktop, ChatGPT, anything that speaks the protocol.
+- **Intelligence**: The RAG pipeline manager orchestrates retrieval and generation, with WebLLM and Wllama runtimes and automatic GPU-to-CPU fallback.
+- **Retrieval**: Transformers.js produces embeddings; the pure-TS HNSW index returns nearest neighbours with real scores. A BM25 sparse index fuses with dense via reciprocal-rank fusion, and a cross-encoder reranker sharpens the top-k — all filtered by metadata.
+- **Custody**: IndexedDB storage manager with quota-aware eviction and JSON/binary export-import for migration and client hand-off.
+- **Acceleration**: GPU compute when WebGPU is available, WASM SIMD fallback otherwise, with a worker pool for batched parallelism.
+- **Reliability**: A typed error hierarchy, LRU caches, a memory manager, and a built-in benchmark runner to measure it all.
 
 ```mermaid
 graph TB
-    subgraph "Application Layer"
+    subgraph "Interface"
         APP[User Application]
         MCP[MCP Interface]
     end
     
-    subgraph "API Layer"
+    subgraph "Intelligence"
         API[VectorDB API]
         RAG[RAG Pipeline Manager]
     end
     
-    subgraph "Embedding Layer"
+    subgraph "Retrieval"
         TJS[Transformers.js]
         CACHE[Model Cache]
     end
@@ -181,11 +154,11 @@ graph TB
     end
     
     subgraph "Index Layer"
-        VOY[Voy WASM Engine]
-        IDX[Index Manager]
+        HNSW[HNSW Graph Index]
+        BM25[BM25 Sparse Index]
     end
     
-    subgraph "Storage Layer"
+    subgraph "Custody"
         IDB[IndexedDB]
         STORE[Storage Manager]
     end
@@ -193,31 +166,27 @@ graph TB
     APP --> API
     MCP --> API
     API --> RAG
-    API --> IDX
+    API --> HNSW
     RAG --> TJS
     RAG --> WLLAMA
     RAG --> WEBLLM
     TJS --> CACHE
-    IDX --> VOY
-    IDX --> STORE
+    HNSW --> STORE
     STORE --> IDB
-    VOY --> IDB
 ```
 
 ## Performance
 
-| Operation | Latency | Throughput |
-|-----------|---------|------------|
-| Search (10K vectors) | <50ms | - |
-| Insert (batch) | - | 2000+ docs/sec |
-| Embedding generation | 50-200ms | - |
-| RAG query (full) | 500ms-5s | - |
+Reproducible from `domicile bench` — the same suite that gates the build. Measured on a Linux/server CPU (Node); a browser WebGPU run will differ.
 
-*Benchmarks on Chrome 120, M1 MacBook Pro*
+| Operation | Latency | Throughput / Quality | Notes |
+|-----------|---------|----------------------|-------|
+| Search (10K vectors, 128-dim cosine) | p50 2.4ms / p99 7ms | recall@10 = 0.91 | Pure-TS HNSW, warm cache |
+| Search (1K vectors, 128-dim cosine) | p50 1.4ms / p99 1.8ms | recall@10 = 1.00 | Non-rebuilding delete <0.01ms |
+| Citation accuracy (legal known-answer corpus) | — | recall@3 = 0.92 | Dense + hybrid + rerank retrieval |
+| RAG query (full pipeline) | retrieval + generate | streaming | Local LLM, browser-bound |
 
-## Production Use
-
-Haven powers privacy-tier features at [Lexemo](https://lexemo.com), processing sensitive legal documents for EU law firms without cloud transmission.
+*Reproduce: `npm run build && node dist/cli/index.js bench`*
 
 ## Development
 
@@ -261,26 +230,26 @@ npm run benchmark
 
 ## Roadmap
 
-- [ ] Python bindings (PyScript)
-- [ ] React hooks package
-- [ ] Hybrid search (dense + sparse)
-- [ ] Multi-modal embeddings (CLIP)
-- [ ] Quantization in browser
+- Python bindings (PyScript)
+- React hooks package
+- Hybrid search (dense + sparse)
+- Multi-modal embeddings (CLIP)
+- Quantization in browser
 
 ## Contributing
 
-Contributions welcome! Please open an issue or PR.
+Contributions welcome. Please open an issue or PR.
 
 ## License
 
-MIT © 2024
+MIT © 2026
 
 ---
 
 <div align="center">
 
-**[Documentation](./docs/QUICKSTART.md)** • **[Examples](./examples/README.md)** • **[GitHub](https://github.com/yourusername/haven)**
+**[Documentation](./docs/QUICKSTART.md)** • **[Examples](./examples/README.md)** • **[GitHub](https://github.com/kyrillosishak/domicile)**
 
-Built with ❤️ for privacy-conscious developers
+Built for privacy-conscious legal and integration teams
 
 </div>
