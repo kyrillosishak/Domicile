@@ -21,7 +21,9 @@ export type {
   InsertData,
   ExportData,
   ExportOptions,
-  ImportOptions
+  ImportOptions,
+  VectorExport,
+  ExportChunk
 } from './core/types';
 
 // Core seam contracts + capabilities + residency

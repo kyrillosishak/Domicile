@@ -5,7 +5,7 @@
 export interface VectorRecord {
   id: string;
   vector: Float32Array;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   timestamp: number;
 }
 

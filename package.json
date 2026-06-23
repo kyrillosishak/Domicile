@@ -67,6 +67,14 @@
   ],
   "author": "kyrillosishak <kyrillosishak16@gmail.com>",
   "license": "MIT",
+  "homepage": "https://kyrillosishak.github.io/Domicile/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kyrillosishak/Domicile.git"
+  },
+  "bugs": {
+    "url": "https://github.com/kyrillosishak/Domicile/issues"
+  },
   "dependencies": {
     "@huggingface/transformers": "^3.1.2",
     "@mlc-ai/web-llm": "^0.2.72",

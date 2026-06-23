@@ -6,6 +6,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { ProgressiveLoader } from './ProgressiveLoader';
 import { IndexedDBStorage } from '../storage/IndexedDBStorage';
 import type { VectorRecord } from '../storage/types';
+import type { VectorExport } from '../core/types';
 
 describe('ProgressiveLoader', () => {
   let storage: IndexedDBStorage;
@@ -41,7 +42,7 @@ describe('ProgressiveLoader', () => {
 
   it('exportInChunks yields chunks of the requested size', async () => {
     const loader = new ProgressiveLoader({ chunkSize: 8 });
-    const collected: any[] = [];
+    const collected: VectorExport[] = [];
     let chunkCount = 0;
     for await (const chunk of loader.exportInChunks(storage)) {
       chunkCount++;

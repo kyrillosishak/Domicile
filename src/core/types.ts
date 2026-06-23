@@ -73,13 +73,20 @@ export interface InsertData {
 export interface ExportData {
   version: string;
   config: VectorDBConfig;
-  vectors: any[];
+  vectors: VectorExport[];
   index: string;
   metadata: {
     exportedAt: number;
     vectorCount: number;
     dimensions: number;
   };
+}
+
+export interface VectorExport {
+  id: string;
+  vector: number[];
+  metadata?: Record<string, unknown>;
+  timestamp: number;
 }
 
 export interface ExportOptions {
@@ -93,3 +100,24 @@ export interface ImportOptions {
   onProgress?: (loaded: number, total: number) => void;
   clearExisting?: boolean;
 }
+
+export interface ExportStreamChunk {
+  type: 'metadata';
+  data: {
+    version: string;
+    config: VectorDBConfig;
+    metadata: { exportedAt: number; vectorCount: number; dimensions: number };
+  };
+}
+
+export interface ExportVectorsChunk {
+  type: 'vectors';
+  data: VectorExport[];
+}
+
+export interface ExportIndexChunk {
+  type: 'index';
+  data: string;
+}
+
+export type ExportChunk = ExportStreamChunk | ExportVectorsChunk | ExportIndexChunk;

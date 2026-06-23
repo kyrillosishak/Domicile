@@ -14,7 +14,7 @@ import { resolve } from 'node:path';
 import { parseFlags } from '../commands.js';
 import { ensureNodeEnv } from '../env.js';
 
-import type { ExportData } from '../../index.js';
+import type { ExportData, VectorExport } from '../../index.js';
 
 /** True if `raw` looks like an NDJSON stream (≥2 top-level JSON lines). */
 export function looksLikeNdjson(raw: string): boolean {
@@ -53,7 +53,7 @@ export function parseNdjson(raw: string): ExportData {
         break;
       }
       case 'vectors': {
-        const batch = rec.data as any[];
+        const batch = rec.data as VectorExport[];
         for (const v of batch) data.vectors.push(v);
         records += batch.length;
         break;

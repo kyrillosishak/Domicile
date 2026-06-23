@@ -4,7 +4,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { VectorDB } from './VectorDB';
-import type { VectorDBConfig } from './types';
+import type { VectorDBConfig, ExportChunk } from './types';
 import { createMockPipeline } from '../test/mocks/transformers.js';
 
 // Mock @huggingface/transformers module
@@ -525,7 +525,7 @@ describe('VectorDB', () => {
       }));
       await streamingDb.insertBatch(docs);
 
-      const chunks: any[] = [];
+      const chunks: ExportChunk[] = [];
       const progressUpdates: Array<{ loaded: number; total: number }> = [];
       for await (const chunk of streamingDb.exportStream({
         onProgress: (loaded, total) => progressUpdates.push({ loaded, total }),

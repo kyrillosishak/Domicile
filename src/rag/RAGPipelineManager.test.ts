@@ -8,6 +8,7 @@ import type { VectorDB } from '../core/VectorDB';
 import type { LLMProvider } from '../llm/types';
 import type { EmbeddingGenerator } from '../embedding/types';
 import type { SearchResult } from '../index/types';
+import type { RAGStreamChunk } from './types';
 
 describe('RAGPipelineManager', () => {
   let mockVectorDB: VectorDB;
@@ -160,7 +161,7 @@ describe('RAGPipelineManager', () => {
 
   describe('queryStream', () => {
     it('should stream RAG query results', async () => {
-      const chunks: any[] = [];
+      const chunks: RAGStreamChunk[] = [];
 
       for await (const chunk of ragPipeline.queryStream('What is the capital of France?')) {
         chunks.push(chunk);
@@ -186,7 +187,7 @@ describe('RAGPipelineManager', () => {
     });
 
     it('should exclude sources in stream when includeSourcesInResponse is false', async () => {
-      const chunks: any[] = [];
+      const chunks: RAGStreamChunk[] = [];
 
       for await (const chunk of ragPipeline.queryStream('What is the capital of France?', {
         includeSourcesInResponse: false,

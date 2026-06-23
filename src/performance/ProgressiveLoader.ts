@@ -4,6 +4,7 @@
  */
 
 import type { VectorRecord, StorageManager } from '../storage/types';
+import type { VectorExport } from '../core/types';
 
 export interface ProgressiveLoaderConfig {
   chunkSize: number;
@@ -128,7 +129,7 @@ export class ProgressiveLoader {
    */
   async *exportInChunks(
     storage: StorageManager
-  ): AsyncGenerator<any[], void, unknown> {
+  ): AsyncGenerator<VectorExport[], void, unknown> {
     const all = await storage.getAll();
     const total = all.length;
     let loaded = 0;

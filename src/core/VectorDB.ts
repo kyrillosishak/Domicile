@@ -6,7 +6,7 @@ import { IndexedDBStorage } from '../storage/IndexedDBStorage';
 import { HnswIndex } from '../index/HnswIndex';
 import { TransformersEmbedding } from '../embedding/TransformersEmbedding';
 import { PerformanceOptimizer } from '../performance/PerformanceOptimizer';
-import type { VectorDBConfig, InjectedConfig, InsertData, ExportData, ExportOptions, ImportOptions } from './types';
+import type { VectorDBConfig, InjectedConfig, InsertData, ExportData, ExportOptions, ImportOptions, VectorExport, ExportChunk } from './types';
 import type { SearchQuery, SearchResult } from '../index/types';
 import type { StorageManager, VectorRecord } from '../storage/types';
 import type { EmbeddingGenerator } from '../embedding/types';
@@ -642,7 +642,7 @@ export class VectorDB {
    * @param options - Export options
    * @returns Async generator yielding export chunks
    */
-  async *exportStream(options: ExportOptions = {}): AsyncGenerator<any, void, unknown> {
+  async *exportStream(options: ExportOptions = {}): AsyncGenerator<ExportChunk, void, unknown> {
     this.ensureInitialized();
 
     const {
@@ -691,7 +691,7 @@ export class VectorDB {
         : this.iterateAllViaProgressiveLoader();
 
       let loaded = 0;
-      let chunk: any[] = [];
+      let chunk: VectorExport[] = [];
       for await (const record of iter) {
         chunk.push({
           id: record.id,
