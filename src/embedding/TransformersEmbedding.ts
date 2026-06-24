@@ -4,6 +4,7 @@
 
 import { pipeline, env } from '@huggingface/transformers';
 import type { EmbeddingGenerator } from './types.js';
+import { logger } from '../logger.js';
 
 export interface TransformersEmbeddingConfig {
   model: string;
@@ -69,7 +70,7 @@ export class TransformersEmbedding implements EmbeddingGenerator {
 
         // If WebGPU fails, fallback to WASM
         if (this.config.device === 'webgpu' && attempt === 1) {
-          console.warn('WebGPU initialization failed, falling back to WASM', error);
+          logger.warn('WebGPU initialization failed, falling back to WASM', { error: String(error) });
           this.config.device = 'wasm';
           continue;
         }
@@ -77,7 +78,7 @@ export class TransformersEmbedding implements EmbeddingGenerator {
         // Retry with exponential backoff
         if (attempt < this.config.maxRetries) {
           const delay = this.config.retryDelay * Math.pow(2, attempt - 1);
-          console.warn(`Model loading failed (attempt ${attempt}/${this.config.maxRetries}), retrying in ${delay}ms...`, error);
+          logger.warn(`Model loading failed (attempt ${attempt}/${this.config.maxRetries}), retrying in ${delay}ms...`, { error: String(error) });
           await this.sleep(delay);
         }
       }

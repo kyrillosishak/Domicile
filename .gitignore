@@ -3,3 +3,18 @@ dist
 coverage
 .DS_Store
 *.log
+
+# Desktop app build artifacts
+desktop/src-tauri/target/
+desktop/dist/
+desktop/icons/.DS_Store
+
+# IDE
+.vscode/
+
+# OS files
+Thumbs.db
+
+# Env files
+.env
+.env.local

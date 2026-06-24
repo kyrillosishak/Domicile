@@ -24,7 +24,7 @@ export interface PendingOperation {
 export class BatchOptimizer {
   private config: Required<BatchOptimizerConfig>;
   private pendingOps: PendingOperation[] = [];
-  private flushTimer: number | null = null;
+  private flushTimer: NodeJS.Timeout | null = null;
   private storage: StorageManager;
 
   constructor(storage: StorageManager, config: BatchOptimizerConfig) {
@@ -155,7 +155,7 @@ export class BatchOptimizer {
 
     // Schedule flush if auto-flush is enabled
     if (this.config.autoFlush && this.flushTimer === null) {
-      this.flushTimer = window.setTimeout(() => {
+      this.flushTimer = setTimeout(() => {
         this.flush();
       }, this.config.maxWaitTime);
     }

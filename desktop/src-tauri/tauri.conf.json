@@ -4,9 +4,9 @@
   "version": "0.2.0",
   "identifier": "com.domicile.desktop",
   "build": {
-    "frontendDist": "../",
+    "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
-    "beforeDevCommand": "npm run build",
+    "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build"
   },
   "app": {
@@ -26,6 +26,6 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/icon.icns"]
+    "icon": ["icons/32x32.png", "icons/128x128.png"]
   }
 }

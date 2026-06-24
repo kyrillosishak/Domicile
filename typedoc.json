@@ -1,0 +1,39 @@
+{
+  "entryPoints": ["src/index.ts"],
+  "out": "docs/api",
+  "name": "Domicile",
+  "readme": "README.md",
+  "theme": "default",
+  "includeVersion": true,
+  "excludePrivate": true,
+  "excludeProtected": true,
+  "excludeExternals": true,
+  "excludeNotDocumented": false,
+  "categoryOrder": [
+    "Core API",
+    "Vector Database",
+    "Embedding",
+    "LLM",
+    "RAG",
+    "MCP",
+    "React",
+    "Performance",
+    "Storage",
+    "Index",
+    "Errors",
+    "Contracts"
+  ],
+  "navigation": {
+    "includeCategories": true,
+    "includeGroups": false,
+    "includeFolders": false
+  },
+  "visibilityFilters": {
+    "protected": false,
+    "private": false,
+    "inherited": true,
+    "external": false
+  },
+  "plugin": [],
+  "tsconfig": "tsconfig.json"
+}

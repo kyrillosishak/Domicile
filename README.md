@@ -234,11 +234,42 @@ npm run benchmark
 
 ## Roadmap
 
-- Python bindings (PyScript)
-- React hooks package
-- Hybrid search (dense + sparse)
-- Multi-modal embeddings (CLIP)
-- Quantization in browser
+- ~~Python bindings (PyScript)~~ — shipped as `@kyrillosishak/domicile-pyscript` (separate package)
+- ~~React hooks package~~ — exported from the main package (`useDomicile`, `useSearch`, `useRag`, `useRagStream`, `useCapabilities`, `useIngestProgress`)
+- ~~Hybrid search (dense + sparse)~~ — implemented in `BM25Index` + reciprocal-rank fusion, integrated into `RAGPipelineManager`
+- ~~Multi-modal embeddings (CLIP)~~ — shipped via `createMultiModalGenerator` (CLIP text + image embeddings in shared space)
+- ~~Quantization in browser~~ — `quantize` / `dequantize` in `quantization/index.ts` (`fp32`, `fp16`, `int8`, `int4`)
+
+## Desktop App
+
+Domicile Desktop is a Tauri-based native application that runs the full Domicile engine in a webview — no fake keyword ranker, the real HNSW + Transformers.js + WebLLM/Wllama stack.
+
+### Build locally
+
+```bash
+# Build the library first
+npm run build
+
+# Build the desktop app
+cd desktop
+npm install
+npm run tauri:build
+```
+
+The output will be in `desktop/src-tauri/target/release/bundle/` (`.dmg`, `.deb`, `.AppImage`, `.msi`, `.exe` depending on platform).
+
+### What it does
+
+1. **Matter workspace** — drop files or paste text; documents are chunked (passage-level, 256-token sliding window), embedded on-device, and held in IndexedDB custody
+2. **Ask** — streaming RAG with hybrid BM25 + dense retrieval, optional cross-encoder rerank, inline citation chips bound to source passages
+3. **Custody panel** — live capability matrix (WebGPU / WASM / SIMD / SharedArrayBuffer / IndexedDB), engine + index + document count + device tier, always-zero egress counter
+4. **Settings** — embedding model, matter ID, hybrid/rerank toggles, export/clear custody
+
+### Architecture
+
+- **Tauri shell** (~10 MB Rust wrapper) — no Chromium bundle, auditable binary
+- **Webview** runs the exact same Domicile engine as the browser/npm package
+- **Residency guard** asserts zero network egress except model-weight cache-once downloads
 
 ## Contributing
 

@@ -87,7 +87,7 @@ async function probeWebGPU(): Promise<ExecutionTier | null> {
   }
 }
 
-function probeWasmSimd(): boolean {
+export function probeWasmSimd(): boolean {
   try {
     if (typeof WebAssembly === 'undefined') return false;
     return !!new Uint8Array([0]).constructor; // presence is enough; details below
@@ -96,14 +96,14 @@ function probeWasmSimd(): boolean {
   }
 }
 
-function threadsAvailable(): boolean {
+export function threadsAvailable(): boolean {
   if (typeof Atomics === 'undefined') return false;
   if (typeof SharedArrayBuffer === 'undefined') return false;
   if (typeof crossOriginIsolated !== 'undefined' && !crossOriginIsolated) return false;
   return true;
 }
 
-function detectPipeline(): PipelineDescribe {
+export function detectPipeline(): PipelineDescribe {
   // Lazy runtime probe — synchronous WASM/SIMD detection, async for WebNN/WebGPU.
   const threads = threadsAvailable() ? Math.max(1, navigator?.hardwareConcurrency ?? 1) : 1;
   let tier: ExecutionTier = 'wasm';

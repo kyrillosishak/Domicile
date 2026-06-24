@@ -1,0 +1,47 @@
+{
+  "name": "@kyrillosishak/domicile-pyscript",
+  "version": "0.1.0",
+  "description": "PyScript/WebAssembly Python bindings for Domicile - run Domicile in Python via PyScript",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "npm run clean && tsc && vite build",
+    "clean": "rm -rf dist",
+    "dev": "vite",
+    "test": "vitest run",
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": [
+    "pyscript",
+    "python",
+    "webassembly",
+    "vector-database",
+    "rag",
+    "embeddings",
+    "domicile"
+  ],
+  "author": "kyrillosishak <kyrillosishak16@gmail.com>",
+  "license": "MIT",
+  "peerDependencies": {
+    "@kyrillosishak/domicile": "^0.2.0"
+  },
+  "devDependencies": {
+    "@kyrillosishak/domicile": "file:../..",
+    "typescript": "^5.7.0",
+    "vite": "^6.0.0",
+    "vite-plugin-dts": "^4.3.0",
+    "vitest": "^2.1.0"
+  }
+}

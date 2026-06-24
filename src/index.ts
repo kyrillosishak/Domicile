@@ -125,6 +125,15 @@ export type {
   IngestProgress,
 } from './react';
 
+// Logger
+export { logger, setLogLevel, getLogLevel, type LogLevel, type Logger } from './logger';
+
+// Quantization
+export { quantize, dequantize, type QuantizationFormat, type QuantizerConfig, type QuantizedResult } from './quantization/index.js';
+
+// Multi-modal embeddings
+export { createMultiModalGenerator, type MultiModalConfig } from './multimodal/index.js';
+
 // Errors
 export { 
   VectorDBError, 

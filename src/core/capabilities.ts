@@ -71,7 +71,7 @@ export async function detectCapabilities(force = false): Promise<Capabilities> {
   return cached;
 }
 
-function inferTier(webgpu: boolean, memoryGB?: number): Capabilities['deviceTier'] {
+export function inferTier(webgpu: boolean, memoryGB?: number): Capabilities['deviceTier'] {
   if (!webgpu) return 'low';
   if (memoryGB === undefined) return 'mid';
   if (memoryGB <= 4) return 'low';

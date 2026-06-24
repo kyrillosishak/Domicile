@@ -55,10 +55,14 @@ export interface VectorDBConfig {
  * directly instead of instantiating concrete adapters — the seam that makes
  * every runtime component swappable. `createDomicile()` wires the defaults.
  */
+import type { StorageManager } from '../storage/types';
+import type { EmbeddingGenerator } from '../embedding/types';
+import type { Index } from './contracts';
+
 export interface InjectedConfig {
-  storage: import('../storage/types').StorageManager;
-  embedding?: import('../embedding/types').EmbeddingGenerator;
-  index: import('./contracts').Index;
+  storage: StorageManager;
+  embedding?: EmbeddingGenerator;
+  index: Index;
   performance?: PerformanceConfig;
   dimensions: number;
   metric?: 'cosine' | 'euclidean' | 'dot';

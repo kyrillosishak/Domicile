@@ -9,7 +9,7 @@ import { createMockPipeline } from '../test/mocks/transformers.js';
 
 // Mock @huggingface/transformers module
 vi.mock('@huggingface/transformers', () => ({
-  pipeline: vi.fn().mockImplementation(async (task: string, model?: string, options?: any) => {
+  pipeline: vi.fn().mockImplementation(async (_task: string, _model?: string, _options?: unknown) => {
     return createMockPipeline({ dimensions: 384 });
   }),
   env: {
@@ -572,7 +572,7 @@ describe('VectorDB', () => {
       await streamingDb.insertBatch(docs);
 
       let seen = 0;
-      for await (const _chunk of streamingDb.exportStream()) {
+      for await (const _ of streamingDb.exportStream()) {
         seen++;
         if (seen >= 2) break; // consumer abandons mid-stream
       }

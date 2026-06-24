@@ -8,7 +8,7 @@ import { TransformersEmbedding } from '../embedding/TransformersEmbedding';
 import { PerformanceOptimizer } from '../performance/PerformanceOptimizer';
 import type { VectorDBConfig, InjectedConfig, InsertData, ExportData, ExportOptions, ImportOptions, VectorExport, ExportChunk } from './types';
 import type { SearchQuery, SearchResult } from '../index/types';
-import type { StorageManager, VectorRecord } from '../storage/types';
+import type { StorageManager, VectorRecord, Filter, CompoundFilter, MetadataFilter } from '../storage/types';
 import type { EmbeddingGenerator } from '../embedding/types';
 import type { Index, IndexHit } from './contracts';
 import { VectorDBError, DimensionMismatchError, InputValidator } from '../errors';
@@ -1090,7 +1090,7 @@ export class VectorDB {
    * Search the index and return results with metadata. IndexHit lacks
    * metadata, so each hit is hydrated from storage.
    */
-  private async idxSearch(query: Float32Array, k: number, filter?: import('../storage/types').Filter): Promise<SearchResult[]> {
+  private async idxSearch(query: Float32Array, k: number, filter?: Filter): Promise<SearchResult[]> {
     const hits: IndexHit[] = await this.injectedIndex!.search(query, k, filter);
     const results: SearchResult[] = [];
     for (const hit of hits) {
@@ -1104,19 +1104,20 @@ export class VectorDB {
   }
 
   /** Metadata filter evaluation for the injected-index hydration path. */
-  private recordMatchesFilter(record: VectorRecord, filter: import('../storage/types').Filter): boolean {
+  private recordMatchesFilter(record: VectorRecord, filter: Filter): boolean {
     // Delegate to the storage layer's filter semantics by reusing the
     // IndexedDBStorage evaluator would be ideal, but to avoid a circular
     // import we implement a minimal evaluator here matching the operators
     // supported by MetadataFilter.
-    const f = filter as any;
+    const f = filter as unknown as CompoundFilter | MetadataFilter;
     if (f.operator === 'and' || f.operator === 'or') {
-      const sub = f.filters as import('../storage/types').Filter[];
+      const sub = f.filters as Filter[];
       if (!sub || sub.length === 0) return true;
       return f.operator === 'and'
         ? sub.every((s) => this.recordMatchesFilter(record, s))
         : sub.some((s) => this.recordMatchesFilter(record, s));
     }
+    if (!('field' in f)) return false;
     const value = this.getNested(record.metadata, f.field as string);
     if (value === undefined) return false;
     switch (f.operator) {
